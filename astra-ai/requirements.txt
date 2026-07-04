@@ -1,0 +1,5 @@
+rich
+loguru
+PySide6
+python-dotenv
+requests

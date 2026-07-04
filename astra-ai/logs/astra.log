@@ -1,0 +1,6 @@
+2026-07-04 09:14:24.283 | INFO     | core.startup:run:22 - Loading Configuration
+2026-07-04 09:14:24.684 | INFO     | core.startup:run:22 - Loading Logger
+2026-07-04 09:14:25.084 | INFO     | core.startup:run:22 - Loading Database
+2026-07-04 09:14:25.485 | INFO     | core.startup:run:22 - Loading Memory
+2026-07-04 09:14:25.885 | INFO     | core.startup:run:22 - Loading User Interface
+2026-07-04 09:14:26.286 | SUCCESS  | core.startup:run:26 - Astra AI Ready
