@@ -1,34 +1,33 @@
-from rich.console import Console
-from rich.panel import Panel
+"""
+Astra AI - Console Entry Point
+"""
 
-from config.constants import APP_NAME, VERSION
-from core.startup import Startup
+from rich.console import Console
+
+from ai.router import Router
 
 console = Console()
 
 
-def banner():
+def main() -> None:
+    """Start the Astra AI CLI."""
 
-    console.print()
+    router = Router()
 
-    console.print(
-        Panel.fit(
-            f"[bold cyan]{APP_NAME}[/bold cyan]\n"
-            f"[green]Version {VERSION}[/green]",
-            border_style="cyan",
-        )
-    )
+    console.print("[bold green]🚀 Astra AI[/bold green]")
+    console.print("[dim]Type 'exit' to quit.[/dim]\n")
 
+    while True:
+        text = console.input("[bold cyan]You:[/bold cyan] ")
 
-def main():
+        if text.lower().strip() == "exit":
+            console.print("\n👋 Goodbye!")
+            break
 
-    banner()
+        response = router.execute(text)
 
-    startup = Startup()
-
-    startup.run()
+        console.print(f"[bold green]Astra:[/bold green] {response.message}")
 
 
 if __name__ == "__main__":
-
     main()

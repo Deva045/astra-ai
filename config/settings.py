@@ -1,17 +1,16 @@
 """
-Application Paths
+Application settings.
 """
 
-from pathlib import Path
+# AI Provider
+AI_PROVIDER = "mock"
 
-ROOT = Path(__file__).resolve().parent.parent
+# Future LLM Settings
+DEFAULT_MODEL = "qwen3"
 
-ASSETS = ROOT / "assets"
+TEMPERATURE = 0.7
 
-DATABASE = ROOT / "database"
+MAX_TOKENS = 2048
 
-MODELS = ROOT / "models"
-
-LOGS = ROOT / "logs"
-
-CACHE = ROOT / "cache"
+# Future Ollama Settings
+OLLAMA_HOST = "http://localhost:11434"

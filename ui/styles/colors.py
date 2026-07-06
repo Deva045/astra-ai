@@ -1,0 +1,18 @@
+"""
+Astra AI Color Palette
+"""
+
+PRIMARY = "#10B981"        # Emerald
+PRIMARY_HOVER = "#059669"
+
+BACKGROUND = "#09090B"
+
+SURFACE = "#111827"
+
+SIDEBAR = "#0F172A"
+
+TEXT = "#FFFFFF"
+
+SECONDARY_TEXT = "#94A3B8"
+
+BORDER = "#1F2937"

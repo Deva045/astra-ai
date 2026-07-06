@@ -1,0 +1,10 @@
+QMainWindow{
+    background:#09090B;
+}
+
+QWidget{
+    background:#09090B;
+    color:white;
+    font-family:Segoe UI;
+    font-size:11pt;
+}
