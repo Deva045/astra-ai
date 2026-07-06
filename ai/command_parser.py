@@ -1,5 +1,5 @@
 """
-Command parser for Astra AI.
+Command parser for Nexus AI.
 
 Parses raw user input into a command name and arguments.
 """

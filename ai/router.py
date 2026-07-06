@@ -1,5 +1,5 @@
 """
-Astra AI Router
+Nexus AI Router
 
 Decides which module should handle the user's request.
 """

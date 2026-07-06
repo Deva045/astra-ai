@@ -14,7 +14,7 @@ class MainWindow(QMainWindow):
 
         super().__init__()
 
-        self.setWindowTitle("Astra AI")
+        self.setWindowTitle("Nexus AI")
 
         self.resize(1400, 900)
 
@@ -30,7 +30,7 @@ class MainWindow(QMainWindow):
 
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        title = QLabel("⚡ Astra AI")
+        title = QLabel("⚡ Nexus AI")
 
         title.setStyleSheet("""
             font-size:34px;

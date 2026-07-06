@@ -1,5 +1,5 @@
 """
-History command for Astra AI.
+History command for Nexus AI.
 """
 
 from __future__ import annotations

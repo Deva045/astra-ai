@@ -1,5 +1,5 @@
 """
-Command history for Astra AI.
+Command history for Nexus AI.
 """
 
 from __future__ import annotations

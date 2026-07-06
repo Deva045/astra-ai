@@ -1,5 +1,5 @@
 """
-Clear command for Astra AI.
+Clear command for Nexus AI.
 """
 
 from __future__ import annotations

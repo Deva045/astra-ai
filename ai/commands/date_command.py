@@ -1,5 +1,5 @@
 """
-Date command for Astra AI.
+Date command for Nexus AI.
 """
 
 from __future__ import annotations

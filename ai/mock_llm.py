@@ -40,7 +40,7 @@ class MockLLM(BaseLLM):
         user_input = self._extract_user_input(prompt)
 
         return (
-            "Hello! I'm Astra.\n\n"
+            "Hello! I'm Nexus.\n\n"
             "✅ AI Engine: Online\n"
             "✅ Conversation Manager: Active\n"
             "✅ Prompt Builder: Active\n"

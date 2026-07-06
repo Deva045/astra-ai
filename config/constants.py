@@ -2,12 +2,12 @@
 Application Constants
 """
 
-APP_NAME = "Astra AI"
+APP_NAME = "Nexus AI"
 VERSION = "0.1.0"
 
 AUTHOR = "King"
 
-COPYRIGHT = "© Astra AI"
+COPYRIGHT = "© Nexus AI"
 
 DATABASE_NAME = "astra.db"
 

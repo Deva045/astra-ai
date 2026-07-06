@@ -1,5 +1,5 @@
 """
-Shared command context for Astra AI.
+Shared command context for Nexus AI.
 """
 
 from __future__ import annotations

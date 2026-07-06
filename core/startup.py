@@ -23,4 +23,4 @@ class Startup:
 
             time.sleep(0.4)
 
-        app_logger.success("Astra AI Ready")
+        app_logger.success("Nexus AI Ready")

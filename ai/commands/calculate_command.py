@@ -1,5 +1,5 @@
 """
-Calculate command for Astra AI.
+Calculate command for Nexus AI.
 """
 
 from __future__ import annotations

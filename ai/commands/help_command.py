@@ -1,5 +1,5 @@
 """
-Help command for Astra AI.
+Help command for Nexus AI.
 """
 
 from __future__ import annotations
@@ -119,7 +119,7 @@ class HelpCommand(Command):
             grouped[command.category].append(command)
 
         lines = [
-            "Astra AI Commands",
+            "Nexus AI Commands",
             "=================",
             "",
         ]

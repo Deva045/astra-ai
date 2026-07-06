@@ -1,5 +1,5 @@
 """
-Astra AI Color Palette
+Nexus AI Color Palette
 """
 
 PRIMARY = "#10B981"        # Emerald

@@ -1,5 +1,5 @@
 """
-Base command abstraction for Astra AI.
+Base command abstraction for Nexus AI.
 
 Every executable command inherits from this class.
 """
@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 
 class Command(ABC):
     """
-    Base class for all Astra commands.
+    Base class for all Nexus commands.
     """
 
     @property

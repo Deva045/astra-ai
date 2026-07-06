@@ -1,5 +1,5 @@
 """
-Bootstrap utilities for Astra AI.
+Bootstrap utilities for Nexus AI.
 
 Responsible for initializing application components.
 """

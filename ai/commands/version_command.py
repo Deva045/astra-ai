@@ -1,5 +1,5 @@
 """
-Version command for Astra AI.
+Version command for Nexus AI.
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from ai.command import Command
 
 class VersionCommand(Command):
     """
-    Displays the current Astra AI version.
+    Displays the current Nexus AI version.
     """
 
     @property
@@ -26,7 +26,7 @@ class VersionCommand(Command):
 
     @property
     def description(self) -> str:
-        return "Show the current Astra AI version."
+        return "Show the current Nexus AI version."
 
     @property
     def usage(self) -> str:
@@ -41,4 +41,4 @@ class VersionCommand(Command):
         ]
 
     def execute(self, arguments: str) -> str:
-        return "Astra AI v0.1.0 (Development Build)"
+        return "Nexus AI v0.1.0 (Development Build)"

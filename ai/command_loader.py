@@ -1,5 +1,5 @@
 """
-Automatic command loader for Astra AI.
+Automatic command loader for Nexus AI.
 """
 
 from __future__ import annotations

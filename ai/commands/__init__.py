@@ -1,5 +1,5 @@
 """
-Built-in commands for Astra AI.
+Built-in commands for Nexus AI.
 """
 
 from ai.commands.calculate_command import CalculateCommand

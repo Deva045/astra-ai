@@ -1,5 +1,5 @@
 """
-Exit command for Astra AI.
+Exit command for Nexus AI.
 """
 
 from __future__ import annotations
@@ -9,7 +9,7 @@ from ai.command import Command
 
 class ExitCommand(Command):
     """
-    Exit Astra AI.
+    Exit Nexus AI.
     """
 
     @property
@@ -26,7 +26,7 @@ class ExitCommand(Command):
 
     @property
     def description(self) -> str:
-        return "Exit Astra AI."
+        return "Exit Nexus AI."
 
     @property
     def usage(self) -> str:

@@ -7,7 +7,7 @@ router = Router()
 
 
 def main():
-    console.print("[bold green]Astra AI CLI[/bold green]")
+    console.print("[bold green]Nexus AI CLI[/bold green]")
     console.print("Type 'exit' to quit.\n")
 
     while True:
@@ -20,7 +20,7 @@ def main():
             break
 
         console.print(
-            f"[bold green]Astra:[/bold green] {response.message}"
+            f"[bold green]Nexus:[/bold green] {response.message}"
         )
 
 

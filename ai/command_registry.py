@@ -1,5 +1,5 @@
 """
-Command registry for Astra AI.
+Command registry for Nexus AI.
 
 Stores and retrieves executable commands.
 """

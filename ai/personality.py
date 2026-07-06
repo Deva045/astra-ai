@@ -1,19 +1,19 @@
 """
-Astra AI Personality.
+Nexus AI Personality.
 """
 
 from __future__ import annotations
 
 
 class Personality:
-    """Defines Astra's personality."""
+    """Defines Nexus's personality."""
 
-    NAME = "Astra"
+    NAME = "Nexus"
 
     VERSION = "0.3.0"
 
     GREETING = (
-        "Hello! I'm Astra, your offline-first AI assistant."
+        "Hello! I'm Nexus, your offline-first AI assistant."
     )
 
     DESCRIPTION = (

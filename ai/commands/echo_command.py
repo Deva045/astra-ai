@@ -1,5 +1,5 @@
 """
-Echo command for Astra AI.
+Echo command for Nexus AI.
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ class EchoCommand(Command):
     def examples(self) -> list[str]:
         return [
             "echo Hello",
-            "repeat Hello Astra",
+            "repeat Hello Nexus",
         ]
 
     def execute(self, arguments: str) -> str:
