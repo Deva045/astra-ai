@@ -9,9 +9,9 @@ AUTHOR = "King"
 
 COPYRIGHT = "© Nexus AI"
 
-DATABASE_NAME = "astra.db"
+DATABASE_NAME = "nexus.db"
 
-LOG_FILE = "logs/astra.log"
+LOG_FILE = "logs/nexus.log"
 
 THEME = "dark"
 

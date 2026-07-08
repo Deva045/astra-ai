@@ -56,16 +56,26 @@ class CalculateCommand(Command):
         ]
 
     def execute(self, arguments: str) -> str:
-        if not arguments.strip():
+        """
+        Safely evaluate a mathematical expression.
+        """
+        arguments = arguments.strip()
+
+        if not arguments:
             return "Usage: calculate <expression>"
 
         try:
-            result = self._evaluate(ast.parse(arguments, mode="eval").body)
+            result = self._evaluate(
+                ast.parse(arguments, mode="eval").body
+            )
             return str(result)
         except Exception:
             return "Invalid mathematical expression."
 
-    def _evaluate(self, node):
+    def _evaluate(self, node: ast.AST):
+        """
+        Recursively evaluate a supported AST node.
+        """
         if isinstance(node, ast.Constant):
             return node.value
 

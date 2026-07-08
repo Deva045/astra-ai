@@ -10,7 +10,7 @@ logger.add(
 )
 
 logger.add(
-    "logs/astra.log",
+    "logs/nexus.log",
     rotation="10 MB",
     retention="30 days",
     compression="zip",
