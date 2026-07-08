@@ -1,4 +1,4 @@
- """
+"""
 Nexus AI Router
 
 Decides which module should handle the user's request.
@@ -108,4 +108,3 @@ class Router:
             self.history.add(text)
 
         yield from self.engine.stream_chat(text)
- 
