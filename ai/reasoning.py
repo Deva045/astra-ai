@@ -1,48 +1,39 @@
 """
-Reasoning engine for Astra AI.
+Reasoning engine for Nexus AI.
 
-Responsible for determining how a user request should be handled.
+Determines how a user request should be processed.
 """
 
 from __future__ import annotations
 
-from enum import Enum
-
-
-class ReasoningType(str, Enum):
-    """
-    Represents the type of reasoning required
-    for a user request.
-    """
-
-    COMMAND = "command"
-    PLANNING = "planning"
-    CHAT = "chat"
-    AUTOMATION = "automation"
-    MEMORY = "memory"
+from ai.reasoning_result import ReasoningResult
+from ai.reasoning_type import ReasoningType
 
 
 class ReasoningEngine:
     """
-    Determines how Astra should process
-    a user's request.
+    Determines how a user request should be handled.
     """
 
-    def classify(self, text: str) -> ReasoningType:
+    def classify(self, text: str) -> ReasoningResult:
         """
         Classify a user request.
 
         Args:
             text:
-                User input.
+                Raw user input.
 
         Returns:
-            The reasoning type.
+            A ReasoningResult describing how the request
+            should be processed.
         """
         text = text.strip().lower()
 
         if not text:
-            return ReasoningType.CHAT
+            return ReasoningResult(
+                reasoning=ReasoningType.CHAT,
+                confidence=1.0,
+            )
 
         command_words = {
             "help",
@@ -69,7 +60,10 @@ class ReasoningEngine:
         first_word = text.split(maxsplit=1)[0]
 
         if first_word in command_words:
-            return ReasoningType.COMMAND
+            return ReasoningResult(
+                reasoning=ReasoningType.COMMAND,
+                confidence=1.0,
+            )
 
         planning_prefixes = (
             "create ",
@@ -79,6 +73,12 @@ class ReasoningEngine:
         )
 
         if text.startswith(planning_prefixes):
-            return ReasoningType.PLANNING
+            return ReasoningResult(
+                reasoning=ReasoningType.PLANNING,
+                confidence=0.95,
+            )
 
-        return ReasoningType.CHAT
+        return ReasoningResult(
+            reasoning=ReasoningType.CHAT,
+            confidence=0.80,
+        )
