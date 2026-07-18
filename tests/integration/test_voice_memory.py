@@ -4,34 +4,61 @@ Integration tests for Voice ↔ Memory interaction.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
 import pytest
 
+from voice.assistant import VoiceAssistant
 from voice.audio_manager import AudioManager
+from voice.interfaces import (
+    AudioInput,
+    SpeechToText,
+    TextToSpeech,
+    WakeWordDetector,
+)
 from voice.microphone_manager import MicrophoneManager
+from voice.models import AudioChunk
+from voice.speech_to_text import SpeechToTextManager
+from voice.text_to_speech import TextToSpeechManager
 from voice.voice_engine import VoiceEngine
+from voice.wake_word import WakeWordManager
 
 
-class DummySpeechToText:
-    """Fake Speech-to-Text backend."""
+class DummyAudioInput(AudioInput):
+    """Fake microphone backend."""
 
-    def transcribe(self, audio):
+    def start(self) -> None:
+        pass
+
+    def stop(self) -> None:
+        pass
+
+    def read(self) -> AudioChunk:
+        return AudioChunk(
+            data=b"audio",
+            sample_rate=16000,
+            channels=1,
+            sample_width=2,
+        )
+
+
+class DummySpeechToText(SpeechToText):
+    """Fake STT backend."""
+
+    def transcribe(self, audio: AudioChunk) -> str:
         return "remember my favorite color is blue"
 
 
-class DummyTextToSpeech:
-    """Fake Text-to-Speech backend."""
+class DummyTextToSpeech(TextToSpeech):
+    """Fake TTS backend."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.last_text = ""
 
     def speak(self, text: str) -> None:
         self.last_text = text
 
 
-class DummyWakeWord:
-    """Fake Wake Word backend."""
+class DummyWakeWord(WakeWordDetector):
+    """Fake wake-word backend."""
 
     def start(self) -> None:
         pass
@@ -43,16 +70,23 @@ class DummyWakeWord:
         return True
 
 
-class DummyMemory:
-    """Simple in-memory store used for testing."""
+class DummyAssistant(VoiceAssistant):
+    """Dummy assistant."""
 
-    def __init__(self):
+    def process_text(self, text: str) -> str:
+        return text
+
+
+class DummyMemory:
+    """Simple in-memory store."""
+
+    def __init__(self) -> None:
         self.storage: list[str] = []
 
     def save(self, text: str) -> None:
         self.storage.append(text)
 
-    def search(self, query: str):
+    def search(self, query: str) -> list[str]:
         return [
             item
             for item in self.storage
@@ -62,24 +96,39 @@ class DummyMemory:
 
 @pytest.fixture
 def voice_engine():
-    """Create a mocked voice engine."""
+    """Create a fully configured voice engine."""
 
-    microphone = MagicMock(spec=MicrophoneManager)
-    audio_manager = MagicMock(spec=AudioManager)
+    audio_manager = AudioManager()
 
-    stt = DummySpeechToText()
-    tts = DummyTextToSpeech()
-    wake = DummyWakeWord()
-
-    engine = VoiceEngine(
-        microphone=microphone,
-        audio_manager=audio_manager,
-        speech_to_text=stt,
-        text_to_speech=tts,
-        wake_word=wake,
+    microphone = MicrophoneManager(
+        audio_manager,
+        DummyAudioInput(),
     )
 
-    return engine, stt, tts
+    stt = SpeechToTextManager(
+        DummySpeechToText(),
+    )
+
+    tts = TextToSpeechManager(
+        DummyTextToSpeech(),
+    )
+
+    wake = WakeWordManager(
+        DummyWakeWord(),
+    )
+
+    assistant = DummyAssistant()
+
+    engine = VoiceEngine(
+        audio_manager,
+        microphone,
+        stt,
+        tts,
+        wake,
+        assistant,
+    )
+
+    return engine, stt, tts, wake
 
 
 def test_memory_store():
@@ -106,24 +155,30 @@ def test_memory_search():
     assert results[0] == "favorite color is blue"
 
 
-def test_voice_to_memory():
+def test_voice_to_memory(voice_engine):
     """Speech should be saved into memory."""
 
-    _, stt, _ = voice_engine()
+    engine, _, _, wake = voice_engine
 
     memory = DummyMemory()
 
-    text = stt.transcribe(b"audio")
+    wake.start()
 
-    memory.save(text)
+    speech = engine.process_once()
+
+    wake.stop()
+
+    assert speech is not None
+
+    memory.save(speech)
 
     assert memory.storage[0] == "remember my favorite color is blue"
 
 
-def test_memory_to_tts():
+def test_memory_to_tts(voice_engine):
     """Memory retrieval should be spoken."""
 
-    _, _, tts = voice_engine()
+    _, _, tts, _ = voice_engine
 
     memory = DummyMemory()
 
@@ -133,17 +188,23 @@ def test_memory_to_tts():
 
     tts.speak(result)
 
-    assert tts.last_text == "favorite color is blue"
+    assert tts.backend.last_text == "favorite color is blue"
 
 
-def test_complete_voice_memory_flow():
+def test_complete_voice_memory_flow(voice_engine):
     """Voice → Memory → TTS integration."""
 
-    _, stt, tts = voice_engine()
+    engine, _, tts, wake = voice_engine
 
     memory = DummyMemory()
 
-    speech = stt.transcribe(b"audio")
+    wake.start()
+
+    speech = engine.process_once()
+
+    wake.stop()
+
+    assert speech is not None
 
     memory.save(speech)
 
@@ -151,7 +212,4 @@ def test_complete_voice_memory_flow():
 
     tts.speak(result)
 
-    assert (
-        tts.last_text
-        == "remember my favorite color is blue"
-    )
+    assert tts.backend.last_text == "remember my favorite color is blue"

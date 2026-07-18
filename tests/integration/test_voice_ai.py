@@ -4,34 +4,61 @@ Integration tests for Voice ↔ AI interaction.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
-
 import pytest
 
-from voice.voice_engine import VoiceEngine
+from voice.assistant import VoiceAssistant
 from voice.audio_manager import AudioManager
+from voice.interfaces import (
+    AudioInput,
+    SpeechToText,
+    TextToSpeech,
+    WakeWordDetector,
+)
 from voice.microphone_manager import MicrophoneManager
+from voice.models import AudioChunk
+from voice.speech_to_text import SpeechToTextManager
+from voice.text_to_speech import TextToSpeechManager
+from voice.voice_engine import VoiceEngine
+from voice.wake_word import WakeWordManager
 
 
-class DummySpeechToText:
-    """Fake Speech-to-Text backend."""
+class DummyAudioInput(AudioInput):
+    """Fake microphone backend."""
 
-    def transcribe(self, audio):
+    def start(self) -> None:
+        pass
+
+    def stop(self) -> None:
+        pass
+
+    def read(self) -> AudioChunk:
+        return AudioChunk(
+            data=b"audio",
+            sample_rate=16000,
+            channels=1,
+            sample_width=2,
+        )
+
+
+class DummySpeechToText(SpeechToText):
+    """Fake STT backend."""
+
+    def transcribe(self, audio: AudioChunk) -> str:
         return "hello nexus"
 
 
-class DummyTextToSpeech:
-    """Fake Text-to-Speech backend."""
+class DummyTextToSpeech(TextToSpeech):
+    """Fake TTS backend."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.last_text = ""
 
     def speak(self, text: str) -> None:
         self.last_text = text
 
 
-class DummyWakeWord:
-    """Fake Wake Word backend."""
+class DummyWakeWord(WakeWordDetector):
+    """Fake wake-word detector."""
 
     def start(self) -> None:
         pass
@@ -43,84 +70,99 @@ class DummyWakeWord:
         return True
 
 
-class DummyAIEngine:
-    """Simple AI engine used for testing."""
+class DummyAssistant(VoiceAssistant):
+    """Fake AI assistant."""
 
-    def process(self, text: str) -> str:
+    def process_text(self, text: str) -> str:
         return f"AI Response: {text}"
 
 
 @pytest.fixture
 def voice_engine():
-    """Create a voice engine with mocked dependencies."""
+    """Create a fully configured voice engine."""
 
-    microphone = MagicMock(spec=MicrophoneManager)
-    audio_manager = MagicMock(spec=AudioManager)
+    audio_manager = AudioManager()
 
-    stt = DummySpeechToText()
-    tts = DummyTextToSpeech()
-    wake_word = DummyWakeWord()
-
-    engine = VoiceEngine(
-        microphone=microphone,
-        audio_manager=audio_manager,
-        speech_to_text=stt,
-        text_to_speech=tts,
-        wake_word=wake_word,
+    microphone = MicrophoneManager(
+        audio_manager,
+        DummyAudioInput(),
     )
 
-    return engine, stt, tts
+    stt = SpeechToTextManager(
+        DummySpeechToText(),
+    )
+
+    tts = TextToSpeechManager(
+        DummyTextToSpeech(),
+    )
+
+    wake = WakeWordManager(
+        DummyWakeWord(),
+    )
+
+    assistant = DummyAssistant()
+
+    engine = VoiceEngine(
+        audio_manager,
+        microphone,
+        stt,
+        tts,
+        wake,
+        assistant,
+    )
+
+    return engine, stt, tts, wake
 
 
 def test_ai_response_generation():
-    """AI should generate a response."""
+    """Assistant should generate a response."""
 
-    ai = DummyAIEngine()
+    assistant = DummyAssistant()
 
-    response = ai.process("hello nexus")
-
-    assert response == "AI Response: hello nexus"
-
-
-def test_voice_to_ai_pipeline():
-    """Speech should reach the AI engine."""
-
-    _, stt, _ = voice_engine()
-
-    ai = DummyAIEngine()
-
-    text = stt.transcribe(b"audio")
-
-    response = ai.process(text)
+    response = assistant.process_text("hello nexus")
 
     assert response == "AI Response: hello nexus"
 
 
-def test_ai_to_tts_pipeline():
-    """AI output should be sent to TTS."""
+def test_voice_to_ai_pipeline(voice_engine):
+    """Speech should reach the AI assistant."""
 
-    _, _, tts = voice_engine()
+    engine, _, _, wake = voice_engine
 
-    ai = DummyAIEngine()
+    wake.start()
 
-    response = ai.process("hello")
+    response = engine.chat_once()
 
-    tts.speak(response)
+    wake.stop()
 
-    assert tts.last_text == "AI Response: hello"
+    assert response == "AI Response: hello nexus"
 
 
-def test_complete_voice_ai_flow():
+def test_ai_to_tts_pipeline(voice_engine):
+    """AI output should be spoken."""
+
+    engine, _, tts, wake = voice_engine
+
+    wake.start()
+
+    response = engine.chat_once()
+
+    wake.stop()
+
+    assert response == "AI Response: hello nexus"
+    assert tts.backend.last_text == "AI Response: hello nexus"
+
+
+def test_complete_voice_ai_flow(voice_engine):
     """Complete Voice → AI → TTS flow."""
 
-    _, stt, tts = voice_engine()
+    engine, _, tts, wake = voice_engine
 
-    ai = DummyAIEngine()
+    wake.start()
 
-    speech = stt.transcribe(b"audio")
+    response = engine.chat_once()
 
-    response = ai.process(speech)
+    wake.stop()
 
-    tts.speak(response)
-
-    assert tts.last_text == "AI Response: hello nexus"
+    assert response == "AI Response: hello nexus"
+    assert tts.backend.last_text == "AI Response: hello nexus"

@@ -1,3 +1,9 @@
 """
-Core AI package for Astra AI.
+AI package.
 """
+
+from .manager import AIManager
+
+__all__ = [
+    "AIManager",
+]
