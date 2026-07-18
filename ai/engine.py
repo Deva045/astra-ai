@@ -1,14 +1,19 @@
 """
 AI Engine
 
-Coordinates conversation management, memory management, and delegates
-response generation to the configured LLM provider.
+Coordinates conversation management, memory management,
+context optimization, and delegates response generation
+to the configured LLM provider.
 """
 
 from __future__ import annotations
 
 from typing import Generator
 
+from ai.context_manager import (
+    ContextManager,
+    ContextMessage,
+)
 from ai.conversation import Conversation
 from ai.factory import LLMFactory
 from ai.llm import BaseLLM
@@ -16,6 +21,7 @@ from ai.memory_extractor import MemoryExtractor
 from ai.memory_manager import MemoryManager
 from ai.memory_query import MemoryQuery
 from ai.prompts import PromptBuilder
+from ai.response import AIResponse
 from ai.sqlite_memory_repository import SQLiteMemoryRepository
 from database.sqlite_database import SQLiteDatabase
 
@@ -28,13 +34,10 @@ class AIEngine:
         llm: BaseLLM | None = None,
         memory_manager: MemoryManager | None = None,
         memory_extractor: MemoryExtractor | None = None,
+        context_manager: ContextManager | None = None,
     ) -> None:
-        """Initialize the AI engine.
-
-        Args:
-            llm: Optional language model implementation.
-            memory_manager: Optional memory manager.
-            memory_extractor: Optional memory extractor.
+        """
+        Initialize the AI engine.
         """
 
         self.llm = llm or LLMFactory.create()
@@ -54,14 +57,42 @@ class AIEngine:
             else MemoryExtractor()
         )
 
-    def chat(self, text: str) -> str:
-        """Generate a complete AI response."""
+        self.context_manager = (
+            context_manager
+            if context_manager is not None
+            else ContextManager()
+        )
+
+        self.last_response: AIResponse | None = None
+
+    def chat(
+        self,
+        text: str,
+    ) -> str:
+        """
+        Generate a complete AI response.
+
+        Returns:
+            Plain text response for backward compatibility.
+        """
 
         prompt = self._prepare_prompt(text)
 
         response = self.llm.generate(prompt)
 
-        self.conversation.add_assistant(response)
+        self.last_response = AIResponse(
+            content=response,
+            provider=self.llm.__class__.__name__,
+            model=getattr(
+                self.llm,
+                "model",
+                "",
+            ),
+        )
+
+        self.conversation.add_assistant(
+            response
+        )
 
         return response
 
@@ -69,7 +100,9 @@ class AIEngine:
         self,
         text: str,
     ) -> Generator[str, None, None]:
-        """Stream an AI response."""
+        """
+        Stream an AI response.
+        """
 
         prompt = self._prepare_prompt(text)
 
@@ -79,28 +112,38 @@ class AIEngine:
             collected += chunk
             yield chunk
 
-        self.conversation.add_assistant(collected)
+        self.last_response = AIResponse(
+            content=collected,
+            provider=self.llm.__class__.__name__,
+            model=getattr(
+                self.llm,
+                "model",
+                "",
+            ),
+        )
 
-    def _prepare_prompt(self, text: str) -> str:
-        """Prepare the prompt for the language model.
+        self.conversation.add_assistant(
+            collected
+        )
 
-        This method updates the conversation history, stores any
-        extracted memories, retrieves relevant memories, and builds
-        the final prompt.
-
-        Args:
-            text: User input.
-
-        Returns:
-            Fully formatted prompt.
+    def _prepare_prompt(
+        self,
+        text: str,
+    ) -> str:
+        """
+        Prepare optimized prompt.
         """
 
         self.conversation.add_user(text)
 
-        memory = self.memory_extractor.extract(text)
+        memory = self.memory_extractor.extract(
+            text
+        )
 
         if memory is not None:
-            self.memory_manager.add_memory(memory)
+            self.memory_manager.add_memory(
+                memory
+            )
 
         context = self._build_context(text)
 
@@ -109,17 +152,14 @@ class AIEngine:
             context=context,
         )
 
-    def _build_context(self, text: str) -> str:
-        """Build the complete conversation context.
-
-        Args:
-            text: Current user input.
-
-        Returns:
-            Combined conversation and memory context.
+    def _build_context(
+        self,
+        text: str,
+    ) -> str:
         """
-
-        conversation_context = self.conversation.get_context()
+        Build optimized context using conversation
+        history and memory.
+        """
 
         result = self.memory_manager.search_memories(
             MemoryQuery(
@@ -128,16 +168,27 @@ class AIEngine:
             )
         )
 
-        if not result.memories:
-            return conversation_context
+        memories: list[str] = []
 
-        memory_context = "\n".join(
-            memory.content
-            for memory in result.memories
+        if result.memories:
+            memories = [
+                memory.content
+                for memory in result.memories
+            ]
+
+        messages = [
+            ContextMessage(
+                role=message.role,
+                content=message.content,
+            )
+            for message in self.conversation.history.last(
+                self.context_manager.max_messages
+            )
+        ]
+
+        context = self.context_manager.build_context(
+            messages=messages,
+            memories=memories,
         )
 
-        return (
-            f"{conversation_context}\n\n"
-            "Relevant memories:\n"
-            f"{memory_context}"
-        )
+        return context.to_prompt()
