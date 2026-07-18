@@ -1,9 +1,10 @@
+
 """
 AI Engine
 
 Coordinates conversation management, memory management,
-context optimization, and delegates response generation
-to the configured LLM provider.
+context optimization, tool execution, and delegates
+response generation to the configured LLM provider.
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ from ai.memory_query import MemoryQuery
 from ai.prompts import PromptBuilder
 from ai.response import AIResponse
 from ai.sqlite_memory_repository import SQLiteMemoryRepository
+from ai.tool_router import ToolRouter
 from database.sqlite_database import SQLiteDatabase
 
 
@@ -35,6 +37,7 @@ class AIEngine:
         memory_manager: MemoryManager | None = None,
         memory_extractor: MemoryExtractor | None = None,
         context_manager: ContextManager | None = None,
+        tool_router: ToolRouter | None = None,
     ) -> None:
         """
         Initialize the AI engine.
@@ -63,6 +66,8 @@ class AIEngine:
             else ContextManager()
         )
 
+        self.tool_router = tool_router
+
         self.last_response: AIResponse | None = None
 
     def chat(
@@ -73,8 +78,30 @@ class AIEngine:
         Generate a complete AI response.
 
         Returns:
-            Plain text response for backward compatibility.
+            Plain text response.
         """
+
+        if self.tool_router is not None:
+            tool_result = self.tool_router.route(
+                text
+            )
+
+            if tool_result is not None:
+                self.conversation.add_user(
+                    text
+                )
+
+                self.conversation.add_assistant(
+                    tool_result
+                )
+
+                self.last_response = AIResponse(
+                    content=tool_result,
+                    provider="Tool",
+                    model="",
+                )
+
+                return tool_result
 
         prompt = self._prepare_prompt(text)
 
@@ -157,8 +184,7 @@ class AIEngine:
         text: str,
     ) -> str:
         """
-        Build optimized context using conversation
-        history and memory.
+        Build optimized context.
         """
 
         result = self.memory_manager.search_memories(

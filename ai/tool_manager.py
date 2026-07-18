@@ -1,3 +1,4 @@
+
 """
 Tool Manager.
 
@@ -81,3 +82,10 @@ class ToolManager:
         """
 
         return self._registry.list_tools()
+
+    def available_metadata(self) -> list[dict]:
+        """
+        Return metadata for available tools.
+        """
+
+        return self._registry.list_metadata()

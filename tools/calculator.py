@@ -1,3 +1,4 @@
+
 """
 Calculator tool for Astra AI.
 """
@@ -20,6 +21,14 @@ class CalculatorTool(Tool):
     description = (
         "Performs basic arithmetic calculations."
     )
+
+    category = "math"
+
+    examples = [
+        "calculate 5 + 5",
+        "solve 100 / 4",
+        "multiply 10 * 10",
+    ]
 
     _operators = {
         ast.Add: operator.add,

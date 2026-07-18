@@ -1,3 +1,4 @@
+
 """
 Tool registry for Astra AI.
 
@@ -61,6 +62,21 @@ class ToolRegistry:
         return list(
             self._tools.keys()
         )
+
+    def list_metadata(self) -> list[dict]:
+        """
+        Return metadata for all tools.
+        """
+
+        return [
+            {
+                "name": tool.name,
+                "description": tool.description,
+                "category": tool.category,
+                "examples": tool.examples,
+            }
+            for tool in self._tools.values()
+        ]
 
     def has_tool(
         self,
