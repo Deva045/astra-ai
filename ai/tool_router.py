@@ -2,11 +2,16 @@
 """
 Tool Router.
 
-Connects tool detection with execution.
+Connects tool detection,
+argument extraction,
+and execution.
 """
 
 from __future__ import annotations
 
+from ai.tool_argument_extractor import (
+    ToolArgumentExtractor,
+)
 from ai.tool_detector import ToolDetector
 from ai.tool_executor import ToolExecutor
 
@@ -20,13 +25,21 @@ class ToolRouter:
         self,
         detector: ToolDetector,
         executor: ToolExecutor,
+        argument_extractor: ToolArgumentExtractor | None = None,
     ) -> None:
         """
         Initialize tool router.
         """
 
         self._detector = detector
+
         self._executor = executor
+
+        self._argument_extractor = (
+            argument_extractor
+            if argument_extractor is not None
+            else ToolArgumentExtractor()
+        )
 
     def route(
         self,
@@ -46,39 +59,14 @@ class ToolRouter:
         if tool_name is None:
             return None
 
-        expression = self._extract_expression(
-            text
+        arguments = (
+            self._argument_extractor.extract(
+                tool_name,
+                text,
+            )
         )
 
         return self._executor.execute(
             tool_name,
-            expression=expression,
+            **arguments,
         )
-
-    def _extract_expression(
-        self,
-        text: str,
-    ) -> str:
-        """
-        Extract calculation expression.
-
-        Simple implementation.
-        Improved parsing comes later.
-        """
-
-        replacements = [
-            "calculate",
-            "solve",
-            "multiply",
-            "divide",
-        ]
-
-        result = text.lower()
-
-        for word in replacements:
-            result = result.replace(
-                word,
-                "",
-            )
-
-        return result.strip()

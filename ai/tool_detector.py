@@ -13,9 +13,7 @@ class ToolDetector:
     """
     Rule-based tool detector.
 
-    Uses simple intent matching now.
-    Future versions can use AI-based
-    tool selection.
+    Uses intent matching.
     """
 
     def __init__(
@@ -24,10 +22,6 @@ class ToolDetector:
     ) -> None:
         """
         Initialize detector.
-
-        Args:
-            tool_metadata:
-                Optional tool information.
         """
 
         self.tool_metadata = (
@@ -42,9 +36,6 @@ class ToolDetector:
     ) -> str | None:
         """
         Detect required tool.
-
-        Returns:
-            Tool name or None.
         """
 
         lowered = text.lower()
@@ -80,6 +71,34 @@ class ToolDetector:
             lowered
         ):
             return "calculator"
+
+        time_keywords = [
+            "what time",
+            "current time",
+            "tell me the time",
+            "time is it",
+            "clock",
+        ]
+
+        if any(
+            keyword in lowered
+            for keyword in time_keywords
+        ):
+            return "clock"
+
+        date_keywords = [
+            "what date",
+            "today's date",
+            "todays date",
+            "current date",
+            "date today",
+        ]
+
+        if any(
+            keyword in lowered
+            for keyword in date_keywords
+        ):
+            return "date"
 
         return None
 

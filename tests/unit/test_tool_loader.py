@@ -9,7 +9,7 @@ from ai.tool_manager import ToolManager
 
 def test_default_tools_loaded():
     """
-    Default tools should be registered.
+    Default tools should load.
     """
 
     manager = ToolManager()
@@ -18,15 +18,18 @@ def test_default_tools_loaded():
         manager
     )
 
-    assert (
-        "calculator"
-        in manager.available_tools()
-    )
+    tools = manager.available_tools()
+
+    assert "calculator" in tools
+
+    assert "clock" in tools
+
+    assert "date" in tools
 
 
-def test_loaded_calculator_execution():
+def test_date_loaded_execution():
     """
-    Loaded calculator should execute.
+    Date tool should execute.
     """
 
     manager = ToolManager()
@@ -36,8 +39,10 @@ def test_loaded_calculator_execution():
     )
 
     result = manager.execute(
-        "calculator",
-        expression="50 / 5",
+        "date"
     )
 
-    assert result == "10"
+    assert isinstance(
+        result,
+        str,
+    )

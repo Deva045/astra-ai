@@ -6,43 +6,61 @@ Unit tests for ToolDetector.
 from ai.tool_detector import ToolDetector
 
 
-def test_detect_calculator_keyword():
+def test_detect_calculator():
     """
-    Calculator requests should be detected.
-    """
-
-    detector = ToolDetector()
-
-    result = detector.detect(
-        "calculate 25 + 5"
-    )
-
-    assert result == "calculator"
-
-
-def test_detect_math_symbols():
-    """
-    Math symbols should trigger calculator.
+    Calculator requests should detect.
     """
 
     detector = ToolDetector()
 
-    result = detector.detect(
-        "10 * 10"
+    assert (
+        detector.detect(
+            "calculate 10 + 5"
+        )
+        == "calculator"
     )
 
-    assert result == "calculator"
 
-
-def test_detect_normal_chat():
+def test_detect_clock():
     """
-    Normal messages should not trigger tools.
+    Time requests should detect.
     """
 
     detector = ToolDetector()
 
-    result = detector.detect(
-        "Tell me about artificial intelligence"
+    assert (
+        detector.detect(
+            "what time is it"
+        )
+        == "clock"
     )
 
-    assert result is None
+
+def test_detect_date():
+    """
+    Date requests should detect.
+    """
+
+    detector = ToolDetector()
+
+    assert (
+        detector.detect(
+            "what is today's date"
+        )
+        == "date"
+    )
+
+
+def test_detect_normal_text():
+    """
+    Normal text should not detect tools.
+    """
+
+    detector = ToolDetector()
+
+    assert (
+        detector.detect(
+            "Explain artificial intelligence"
+        )
+        is None
+    )

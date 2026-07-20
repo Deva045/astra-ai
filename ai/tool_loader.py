@@ -8,7 +8,11 @@ Loads default Astra AI tools.
 from __future__ import annotations
 
 from ai.tool_manager import ToolManager
-from tools import CalculatorTool
+from tools import (
+    CalculatorTool,
+    ClockTool,
+    DateTool,
+)
 
 
 class ToolLoader:
@@ -26,4 +30,12 @@ class ToolLoader:
 
         manager.register(
             CalculatorTool()
+        )
+
+        manager.register(
+            ClockTool()
+        )
+
+        manager.register(
+            DateTool()
         )
