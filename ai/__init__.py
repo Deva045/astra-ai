@@ -1,3 +1,3 @@
 """
-Core AI package for Astra AI.
+AI package.
 """

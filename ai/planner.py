@@ -1,3 +1,4 @@
+
 """
 Planner for Astra AI.
 
@@ -7,9 +8,10 @@ structured execution plans.
 
 from __future__ import annotations
 
-import re
-
 from ai.plan import Plan
+from ai.plan_parser import PlanParser
+from ai.execution_result import ExecutionResult
+from ai.plan_executor import PlanExecutor
 from ai.plan_step import PlanStep
 
 
@@ -18,17 +20,14 @@ class Planner:
     Builds execution plans from user requests.
     """
 
+    def __init__(self) -> None:
+        self._parser = PlanParser()
+
     def create_plan(self, goal: str) -> Plan:
         """
         Create an execution plan for the supplied goal.
-
-        Args:
-            goal:
-                User request or objective.
-
-        Returns:
-            A populated execution plan.
         """
+
         goal = goal.strip()
 
         plan = Plan(goal=goal)
@@ -38,39 +37,67 @@ class Planner:
 
         lowered = goal.lower()
 
-        # Python project planning
         if (
             "python project" in lowered
             or "project called" in lowered
         ):
-            self._plan_python_project(plan, goal)
+            self._plan_python_project(
+                plan,
+                goal,
+            )
             return plan
 
-        # Multiple instructions
-        instructions = [
-            item.strip()
-            for item in re.split(r"\.\s+", goal)
-            if item.strip()
-        ]
+        instructions = self._parser.parse(goal)
 
         if len(instructions) > 1:
-            self._plan_multiple(plan, instructions)
+            self._plan_multiple(
+                plan,
+                instructions,
+            )
             return plan
 
-        # Folder creation
+        instruction = instructions[0] if instructions else goal
+        lowered = instruction.lower()
+
         if lowered.startswith("create folder"):
-            self._plan_folder_creation(plan, goal)
+            self._plan_folder_creation(
+                plan,
+                instruction,
+            )
             return plan
 
-        # File creation
         if lowered.startswith("create file"):
-            self._plan_file_creation(plan, goal)
+            self._plan_file_creation(
+                plan,
+                instruction,
+            )
             return plan
 
-        # Generic fallback
-        self._plan_generic(plan, goal)
+        self._plan_generic(
+            plan,
+            instruction,
+        )
 
         return plan
+
+
+    def plan_and_execute(
+        self,
+        goal: str,
+        executor: PlanExecutor,
+    ) -> ExecutionResult:
+        """
+        Create a plan and execute it.
+        """
+
+        plan = self.create_plan(
+            goal
+        )
+
+        return executor.execute_with_result(
+            plan
+        )
+
 
     def _plan_python_project(
         self,
@@ -80,7 +107,10 @@ class Planner:
         """
         Create a standard Python project plan.
         """
-        project_name = self._extract_project_name(goal)
+
+        project_name = self._extract_project_name(
+            goal
+        )
 
         self._add_step(
             plan,
@@ -110,7 +140,8 @@ class Planner:
         """
         Create a folder creation plan.
         """
-        folder = goal[len("Create folder") :].strip()
+
+        folder = goal[len("Create folder"):].strip()
 
         self._add_step(
             plan,
@@ -125,7 +156,8 @@ class Planner:
         """
         Create a file creation plan.
         """
-        filename = goal[len("Create file") :].strip()
+
+        filename = goal[len("Create file"):].strip()
 
         self._add_step(
             plan,
@@ -138,10 +170,10 @@ class Planner:
         instructions: list[str],
     ) -> None:
         """
-        Create a plan from multiple instructions.
+        Build a plan from multiple instructions.
         """
+
         for instruction in instructions:
-            instruction = instruction.rstrip(".").strip()
 
             lowered = instruction.lower()
 
@@ -169,8 +201,9 @@ class Planner:
         goal: str,
     ) -> None:
         """
-        Create a generic one-step plan.
+        Generic planning fallback.
         """
+
         self._add_step(
             plan,
             goal,
@@ -186,6 +219,7 @@ class Planner:
         """
         Add a step to the plan.
         """
+
         plan.add_step(
             PlanStep(
                 id=plan.step_count() + 1,
@@ -199,12 +233,16 @@ class Planner:
         goal: str,
     ) -> str:
         """
-        Extract the project name from the user's goal.
+        Extract the project name.
         """
+
         lowered = goal.lower()
 
         if "called" in lowered:
-            return goal.split("called", 1)[1].strip()
+            return goal.split(
+                "called",
+                1,
+            )[1].strip()
 
         words = goal.split()
 

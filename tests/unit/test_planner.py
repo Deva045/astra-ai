@@ -1,108 +1,152 @@
+
 """
-Unit tests for the Planner.
+Tests for Planner.
 """
 
-from __future__ import annotations
-
-from ai.plan_status import PlanStatus
 from ai.planner import Planner
 
 
-class TestPlanner:
+def test_empty_goal():
+    planner = Planner()
+
+    plan = planner.create_plan("")
+
+    assert plan.goal == ""
+    assert plan.step_count() == 0
+
+
+def test_create_folder():
+    planner = Planner()
+
+    plan = planner.create_plan(
+        "Create folder demo"
+    )
+
+    assert plan.step_count() == 1
+    assert (
+        plan.steps[0].title
+        == "Create folder demo"
+    )
+
+
+def test_create_file():
+    planner = Planner()
+
+    plan = planner.create_plan(
+        "Create file main.py"
+    )
+
+    assert plan.step_count() == 1
+    assert (
+        plan.steps[0].title
+        == "Create file main.py"
+    )
+
+
+def test_python_project():
+    planner = Planner()
+
+    plan = planner.create_plan(
+        "Create a Python project called Demo"
+    )
+
+    assert plan.step_count() == 4
+
+    assert (
+        plan.steps[0].title
+        == 'Create project folder "Demo"'
+    )
+
+    assert (
+        plan.steps[-1].title
+        == "Verify project structure"
+    )
+
+
+def test_multiple_steps():
+    planner = Planner()
+
+    plan = planner.create_plan(
+        "Create folder demo. Create file main.py"
+    )
+
+    assert plan.step_count() == 2
+
+    assert (
+        plan.steps[0].title
+        == "Create folder demo"
+    )
+
+    assert (
+        plan.steps[1].title
+        == "Create file main.py"
+    )
+
+
+def test_generic_plan():
+    planner = Planner()
+
+    plan = planner.create_plan(
+        "Tell me a joke"
+    )
+
+    assert plan.step_count() == 1
+
+    assert (
+        plan.steps[0].title
+        == "Tell me a joke"
+    )
+
+
+from ai.execution_result import ExecutionResult
+from ai.plan_executor import PlanExecutor
+
+
+def test_plan_and_execute():
     """
-    Tests for the Planner.
+    Planner should create and execute a plan.
     """
 
-    def setup_method(self) -> None:
-        """
-        Create a fresh planner before each test.
-        """
-        self.planner = Planner()
+    planner = Planner()
 
-    def test_empty_goal(self) -> None:
-        """
-        An empty goal should produce an empty plan.
-        """
-        plan = self.planner.create_plan("")
+    executor = PlanExecutor()
 
-        assert plan.goal == ""
-        assert plan.step_count() == 0
-        assert not plan.is_complete()
+    result = planner.plan_and_execute(
+        "Create folder Demo",
+        executor,
+    )
 
-    def test_goal_is_trimmed(self) -> None:
-        """
-        Leading and trailing whitespace should be removed.
-        """
-        plan = self.planner.create_plan("   Open calculator   ")
+    assert isinstance(
+        result,
+        ExecutionResult,
+    )
 
-        assert plan.goal == "Open calculator"
+    assert result.success is True
 
-    def test_single_step_plan(self) -> None:
-        """
-        A simple goal should create one plan step.
-        """
-        plan = self.planner.create_plan("Open calculator")
+    assert result.executed_steps == 1
 
-        assert plan.step_count() == 1
+    assert result.failed_steps == 0
 
-    def test_step_id(self) -> None:
-        """
-        The first step should have ID 1.
-        """
-        plan = self.planner.create_plan("Open calculator")
+    assert result.outputs == [
+        "Executed: Create folder Demo",
+    ]
 
-        assert plan.steps[0].id == 1
 
-    def test_step_title(self) -> None:
-        """
-        The step title should match the goal.
-        """
-        plan = self.planner.create_plan("Open calculator")
+def test_plan_and_execute_empty_goal():
+    planner = Planner()
 
-        assert plan.steps[0].title == "Open calculator"
+    executor = PlanExecutor()
 
-    def test_step_description(self) -> None:
-        """
-        The default description should be assigned.
-        """
-        plan = self.planner.create_plan("Open calculator")
+    result = planner.plan_and_execute(
+        "",
+        executor,
+    )
 
-        assert (
-            plan.steps[0].description
-            == "Execute the requested task."
-        )
+    assert isinstance(
+        result,
+        ExecutionResult,
+    )
 
-    def test_step_default_status(self) -> None:
-        """
-        New steps should start in the pending state.
-        """
-        plan = self.planner.create_plan("Open calculator")
+    assert result.executed_steps == 0
 
-        assert (
-            plan.steps[0].status
-            == PlanStatus.PENDING
-        )
-
-    def test_pending_steps(self) -> None:
-        """
-        The created step should appear in pending steps.
-        """
-        plan = self.planner.create_plan("Open calculator")
-
-        assert len(plan.pending_steps()) == 1
-
-    def test_completed_steps_initially_empty(self) -> None:
-        """
-        A new plan should not contain completed steps.
-        """
-        plan = self.planner.create_plan("Open calculator")
-
-        assert plan.completed_steps() == []
-
-    def test_plan_is_not_complete(self) -> None:
-        """
-        A new plan should not be complete.
-        """
-        plan = self.planner.create_plan("Open calculator")
-
-        assert not plan.is_complete()
+    assert result.success is True

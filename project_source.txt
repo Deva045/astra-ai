@@ -1,0 +1,7260 @@
+]633;E;find voice tests app -type f -name "*.py";405a0567-166d-4cc6-a6d2-ae97d57a10ab]633;C
+==================================================================
+FILE: tests/integration/test_voice_ai.py
+==================================================================
+"""
+Integration tests for Voice ↔ AI interaction.
+"""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock
+
+import pytest
+
+from voice.voice_engine import VoiceEngine
+from voice.audio_manager import AudioManager
+from voice.microphone_manager import MicrophoneManager
+
+
+class DummySpeechToText:
+    """Fake Speech-to-Text backend."""
+
+    def transcribe(self, audio):
+        return "hello nexus"
+
+
+class DummyTextToSpeech:
+    """Fake Text-to-Speech backend."""
+
+    def __init__(self):
+        self.last_text = ""
+
+    def speak(self, text: str) -> None:
+        self.last_text = text
+
+
+class DummyWakeWord:
+    """Fake Wake Word backend."""
+
+    def start(self) -> None:
+        pass
+
+    def stop(self) -> None:
+        pass
+
+    def detected(self) -> bool:
+        return True
+
+
+class DummyAIEngine:
+    """Simple AI engine used for testing."""
+
+    def process(self, text: str) -> str:
+        return f"AI Response: {text}"
+
+
+@pytest.fixture
+def voice_engine():
+    """Create a voice engine with mocked dependencies."""
+
+    microphone = MagicMock(spec=MicrophoneManager)
+    audio_manager = MagicMock(spec=AudioManager)
+
+    stt = DummySpeechToText()
+    tts = DummyTextToSpeech()
+    wake_word = DummyWakeWord()
+
+    engine = VoiceEngine(
+        microphone=microphone,
+        audio_manager=audio_manager,
+        speech_to_text=stt,
+        text_to_speech=tts,
+        wake_word=wake_word,
+    )
+
+    return engine, stt, tts
+
+
+def test_ai_response_generation():
+    """AI should generate a response."""
+
+    ai = DummyAIEngine()
+
+    response = ai.process("hello nexus")
+
+    assert response == "AI Response: hello nexus"
+
+
+def test_voice_to_ai_pipeline():
+    """Speech should reach the AI engine."""
+
+    _, stt, _ = voice_engine()
+
+    ai = DummyAIEngine()
+
+    text = stt.transcribe(b"audio")
+
+    response = ai.process(text)
+
+    assert response == "AI Response: hello nexus"
+
+
+def test_ai_to_tts_pipeline():
+    """AI output should be sent to TTS."""
+
+    _, _, tts = voice_engine()
+
+    ai = DummyAIEngine()
+
+    response = ai.process("hello")
+
+    tts.speak(response)
+
+    assert tts.last_text == "AI Response: hello"
+
+
+def test_complete_voice_ai_flow():
+    """Complete Voice → AI → TTS flow."""
+
+    _, stt, tts = voice_engine()
+
+    ai = DummyAIEngine()
+
+    speech = stt.transcribe(b"audio")
+
+    response = ai.process(speech)
+
+    tts.speak(response)
+
+    assert tts.last_text == "AI Response: hello nexus"
+
+==================================================================
+FILE: tests/integration/test_voice_memory.py
+==================================================================
+"""
+Integration tests for Voice ↔ Memory interaction.
+"""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock
+
+import pytest
+
+from voice.audio_manager import AudioManager
+from voice.microphone_manager import MicrophoneManager
+from voice.voice_engine import VoiceEngine
+
+
+class DummySpeechToText:
+    """Fake Speech-to-Text backend."""
+
+    def transcribe(self, audio):
+        return "remember my favorite color is blue"
+
+
+class DummyTextToSpeech:
+    """Fake Text-to-Speech backend."""
+
+    def __init__(self):
+        self.last_text = ""
+
+    def speak(self, text: str) -> None:
+        self.last_text = text
+
+
+class DummyWakeWord:
+    """Fake Wake Word backend."""
+
+    def start(self) -> None:
+        pass
+
+    def stop(self) -> None:
+        pass
+
+    def detected(self) -> bool:
+        return True
+
+
+class DummyMemory:
+    """Simple in-memory store used for testing."""
+
+    def __init__(self):
+        self.storage: list[str] = []
+
+    def save(self, text: str) -> None:
+        self.storage.append(text)
+
+    def search(self, query: str):
+        return [
+            item
+            for item in self.storage
+            if query.lower() in item.lower()
+        ]
+
+
+@pytest.fixture
+def voice_engine():
+    """Create a mocked voice engine."""
+
+    microphone = MagicMock(spec=MicrophoneManager)
+    audio_manager = MagicMock(spec=AudioManager)
+
+    stt = DummySpeechToText()
+    tts = DummyTextToSpeech()
+    wake = DummyWakeWord()
+
+    engine = VoiceEngine(
+        microphone=microphone,
+        audio_manager=audio_manager,
+        speech_to_text=stt,
+        text_to_speech=tts,
+        wake_word=wake,
+    )
+
+    return engine, stt, tts
+
+
+def test_memory_store():
+    """Memory should store conversations."""
+
+    memory = DummyMemory()
+
+    memory.save("remember my favorite color is blue")
+
+    assert len(memory.storage) == 1
+
+
+def test_memory_search():
+    """Memory should return matching entries."""
+
+    memory = DummyMemory()
+
+    memory.save("favorite color is blue")
+    memory.save("favorite food is pizza")
+
+    results = memory.search("color")
+
+    assert len(results) == 1
+    assert results[0] == "favorite color is blue"
+
+
+def test_voice_to_memory():
+    """Speech should be saved into memory."""
+
+    _, stt, _ = voice_engine()
+
+    memory = DummyMemory()
+
+    text = stt.transcribe(b"audio")
+
+    memory.save(text)
+
+    assert memory.storage[0] == "remember my favorite color is blue"
+
+
+def test_memory_to_tts():
+    """Memory retrieval should be spoken."""
+
+    _, _, tts = voice_engine()
+
+    memory = DummyMemory()
+
+    memory.save("favorite color is blue")
+
+    result = memory.search("color")[0]
+
+    tts.speak(result)
+
+    assert tts.last_text == "favorite color is blue"
+
+
+def test_complete_voice_memory_flow():
+    """Voice → Memory → TTS integration."""
+
+    _, stt, tts = voice_engine()
+
+    memory = DummyMemory()
+
+    speech = stt.transcribe(b"audio")
+
+    memory.save(speech)
+
+    result = memory.search("favorite")[0]
+
+    tts.speak(result)
+
+    assert (
+        tts.last_text
+        == "remember my favorite color is blue"
+    )
+
+==================================================================
+FILE: tests/integration/test_voice_pipeline.py
+==================================================================
+"""
+Integration tests for the complete voice pipeline.
+"""
+
+from __future__ import annotations
+
+from unittest.mock import MagicMock
+
+from voice.audio_manager import AudioManager
+from voice.microphone_manager import MicrophoneManager
+from voice.voice_engine import VoiceEngine
+
+
+class DummySpeechToText:
+    """Fake STT backend."""
+
+    def transcribe(self, audio):
+        return "hello nexus"
+
+
+class DummyTextToSpeech:
+    """Fake TTS backend."""
+
+    def __init__(self):
+        self.last_text = None
+
+    def speak(self, text: str) -> None:
+        self.last_text = text
+
+
+class DummyWakeWord:
+    """Fake wake-word detector."""
+
+    def start(self):
+        pass
+
+    def stop(self):
+        pass
+
+    def detected(self):
+        return True
+
+
+def test_voice_pipeline_initialization() -> None:
+    """Voice engine should initialize."""
+
+    microphone = MagicMock(spec=MicrophoneManager)
+    audio = MagicMock(spec=AudioManager)
+
+    stt = DummySpeechToText()
+    tts = DummyTextToSpeech()
+    wake = DummyWakeWord()
+
+    engine = VoiceEngine(
+        microphone=microphone,
+        audio_manager=audio,
+        speech_to_text=stt,
+        text_to_speech=tts,
+        wake_word=wake,
+    )
+
+    assert engine is not None
+
+
+def test_stt_backend() -> None:
+    """Speech-to-text backend should return text."""
+
+    stt = DummySpeechToText()
+
+    assert stt.transcribe(b"audio") == "hello nexus"
+
+
+def test_tts_backend() -> None:
+    """Text-to-speech backend should receive text."""
+
+    tts = DummyTextToSpeech()
+
+    tts.speak("hello")
+
+    assert tts.last_text == "hello"
+
+
+def test_wake_word_backend() -> None:
+    """Wake-word detector should trigger."""
+
+    wake = DummyWakeWord()
+
+    assert wake.detected() is True
+
+
+def test_voice_pipeline_flow() -> None:
+    """Simple end-to-end pipeline."""
+
+    stt = DummySpeechToText()
+    tts = DummyTextToSpeech()
+
+    text = stt.transcribe(b"audio")
+
+    tts.speak(text)
+
+    assert tts.last_text == "hello nexus"
+
+==================================================================
+FILE: tests/test_planner_multi_step.py
+==================================================================
+"""
+Unit tests for multi-step planning.
+"""
+
+from __future__ import annotations
+
+from ai.planner import Planner
+
+
+class TestPlannerMultiStep:
+    """
+    Tests for multi-step planning.
+    """
+
+    def setup_method(self) -> None:
+        self.planner = Planner()
+
+    def test_folder_creation(self) -> None:
+        plan = self.planner.create_plan(
+            "Create folder Demo"
+        )
+
+        assert plan.step_count() == 1
+        assert plan.steps[0].title == "Create folder Demo"
+
+    def test_file_creation(self) -> None:
+        plan = self.planner.create_plan(
+            "Create file app.py"
+        )
+
+        assert plan.step_count() == 1
+        assert plan.steps[0].title == "Create file app.py"
+
+    def test_multiple_steps(self) -> None:
+        plan = self.planner.create_plan(
+            "Create folder Demo. "
+            "Create file app.py. "
+            "Create file README.md."
+        )
+
+        assert plan.step_count() == 3
+
+    def test_step_order(self) -> None:
+        plan = self.planner.create_plan(
+            "Create folder Demo. "
+            "Create file app.py."
+        )
+
+        assert plan.steps[0].title == "Create folder Demo"
+        assert plan.steps[1].title == "Create file app.py"
+
+    def test_sequential_ids(self) -> None:
+        plan = self.planner.create_plan(
+            "Create folder Demo. "
+            "Create file app.py."
+        )
+
+        ids = [step.id for step in plan.steps]
+
+        assert ids == [1, 2]
+
+    def test_generic_instruction_in_multi_plan(self) -> None:
+        plan = self.planner.create_plan(
+            "Open calculator. "
+            "Create folder Demo."
+        )
+
+        assert plan.step_count() == 2
+        assert plan.steps[0].title == "Open calculator"
+        assert plan.steps[1].title == "Create folder Demo"
+
+==================================================================
+FILE: tests/unit/test_ai_engine.py
+==================================================================
+"""
+Unit tests for the AI engine.
+"""
+
+from __future__ import annotations
+
+from ai.engine import AIEngine
+from ai.mock_llm import MockLLM
+
+
+class TestAIEngine:
+    """
+    Tests for the AI engine.
+    """
+
+    def test_chat_returns_response(self) -> None:
+        """
+        Verify chat returns a response.
+        """
+        engine = AIEngine(
+            llm=MockLLM(),
+        )
+
+        response = engine.chat("Hello")
+
+        assert response
+        assert "Nexus" in response
+
+    def test_chat_adds_conversation_messages(self) -> None:
+        """
+        Verify chat stores the user and assistant messages.
+        """
+        engine = AIEngine(
+            llm=MockLLM(),
+        )
+
+        engine.chat("Hello")
+
+        assert engine.conversation.size() == 2
+
+    def test_stream_chat_returns_chunks(self) -> None:
+        """
+        Verify streaming produces output.
+        """
+        engine = AIEngine(
+            llm=MockLLM(),
+        )
+
+        chunks = list(
+            engine.stream_chat("Hello")
+        )
+
+        assert len(chunks) > 0
+
+    def test_stream_chat_adds_conversation_messages(self) -> None:
+        """
+        Verify streaming stores conversation history.
+        """
+        engine = AIEngine(
+            llm=MockLLM(),
+        )
+
+        list(
+            engine.stream_chat("Hello")
+        )
+
+        assert engine.conversation.size() == 2
+
+    def test_preference_memory_is_stored(self) -> None:
+        """
+        Verify preference memories are stored.
+        """
+        engine = AIEngine(
+            llm=MockLLM(),
+        )
+
+        initial = engine.memory_manager.memory_count()
+
+        engine.chat("I like Python")
+
+        assert (
+            engine.memory_manager.memory_count()
+            == initial + 1
+        )
+
+    def test_fact_memory_is_stored(self) -> None:
+        """
+        Verify fact memories are stored.
+        """
+        engine = AIEngine(
+            llm=MockLLM(),
+        )
+
+        initial = engine.memory_manager.memory_count()
+
+        engine.chat(
+            "Remember that Paris is in France"
+        )
+
+        assert (
+            engine.memory_manager.memory_count()
+            == initial + 1
+        )
+
+    def test_normal_message_is_not_stored(self) -> None:
+        """
+        Verify ordinary conversation is not stored
+        as long-term memory.
+        """
+        engine = AIEngine(
+            llm=MockLLM(),
+        )
+
+        initial = engine.memory_manager.memory_count()
+
+        engine.chat("Hello there!")
+
+        assert (
+            engine.memory_manager.memory_count()
+            == initial
+        )
+
+    def test_multiple_chats_grow_history(self) -> None:
+        """
+        Verify conversation history grows correctly.
+        """
+        engine = AIEngine(
+            llm=MockLLM(),
+        )
+
+        engine.chat("Hello")
+        engine.chat("How are you?")
+
+        assert engine.conversation.size() == 4
+
+==================================================================
+FILE: tests/unit/test_calculate_command.py
+==================================================================
+"""
+Unit tests for the CalculateCommand.
+"""
+
+from __future__ import annotations
+
+from ai.commands.calculate_command import CalculateCommand
+
+
+class TestCalculateCommand:
+    """
+    Tests for the CalculateCommand.
+    """
+
+    def setup_method(self) -> None:
+        self.command = CalculateCommand()
+
+    def test_addition(self) -> None:
+        assert self.command.execute("5 + 7") == "12"
+
+    def test_subtraction(self) -> None:
+        assert self.command.execute("10 - 3") == "7"
+
+    def test_multiplication(self) -> None:
+        assert self.command.execute("6 * 4") == "24"
+
+    def test_division(self) -> None:
+        assert self.command.execute("20 / 5") == "4.0"
+
+    def test_parentheses(self) -> None:
+        assert self.command.execute("(2 + 3) * 4") == "20"
+
+    def test_power(self) -> None:
+        assert self.command.execute("2 ** 5") == "32"
+
+    def test_modulo(self) -> None:
+        assert self.command.execute("10 % 3") == "1"
+
+    def test_floor_division(self) -> None:
+        assert self.command.execute("7 // 2") == "3"
+
+    def test_negative_number(self) -> None:
+        assert self.command.execute("-5") == "-5"
+
+    def test_float_expression(self) -> None:
+        assert self.command.execute("2.5 + 3.5") == "6.0"
+
+    def test_whitespace_is_ignored(self) -> None:
+        assert self.command.execute("   8 + 2   ") == "10"
+
+    def test_empty_expression(self) -> None:
+        assert (
+            self.command.execute("")
+            == "Usage: calculate <expression>"
+        )
+
+    def test_whitespace_only_expression(self) -> None:
+        assert (
+            self.command.execute("     ")
+            == "Usage: calculate <expression>"
+        )
+
+    def test_invalid_expression(self) -> None:
+        assert (
+            self.command.execute("2 +")
+            == "Invalid mathematical expression."
+        )
+
+    def test_division_by_zero(self) -> None:
+        assert (
+            self.command.execute("5 / 0")
+            == "Invalid mathematical expression."
+        )
+
+    def test_unsupported_expression(self) -> None:
+        assert (
+            self.command.execute("abs(5)")
+            == "Invalid mathematical expression."
+        )
+
+    def test_execute_returns_string(self) -> None:
+        result = self.command.execute("1 + 1")
+        assert isinstance(result, str)
+
+==================================================================
+FILE: tests/unit/test_command_parser.py
+==================================================================
+"""
+Unit tests for the command parser.
+"""
+
+from __future__ import annotations
+
+from ai.command_parser import CommandParser, ParsedCommand
+
+
+class TestCommandParser:
+    """
+    Tests for CommandParser.
+    """
+
+    def setup_method(self) -> None:
+        """
+        Create a fresh parser before each test.
+        """
+        self.parser = CommandParser()
+
+    def test_parse_single_command(self) -> None:
+        """
+        A single command should parse correctly.
+        """
+        result = self.parser.parse("help")
+
+        assert result == ParsedCommand(
+            name="help",
+            arguments="",
+        )
+
+    def test_parse_command_with_arguments(self) -> None:
+        """
+        Commands with arguments should preserve the arguments.
+        """
+        result = self.parser.parse("echo Hello World")
+
+        assert result == ParsedCommand(
+            name="echo",
+            arguments="Hello World",
+        )
+
+    def test_parse_trims_whitespace(self) -> None:
+        """
+        Leading and trailing whitespace should be ignored.
+        """
+        result = self.parser.parse("   version   ")
+
+        assert result == ParsedCommand(
+            name="version",
+            arguments="",
+        )
+
+    def test_parse_converts_command_to_lowercase(self) -> None:
+        """
+        Command names should be case-insensitive.
+        """
+        result = self.parser.parse("HeLp")
+
+        assert result == ParsedCommand(
+            name="help",
+            arguments="",
+        )
+
+    def test_parse_preserves_argument_case(self) -> None:
+        """
+        Arguments should preserve their original case.
+        """
+        result = self.parser.parse("echo Hello Astra AI")
+
+        assert result == ParsedCommand(
+            name="echo",
+            arguments="Hello Astra AI",
+        )
+
+    def test_parse_empty_string_returns_none(self) -> None:
+        """
+        Empty input should return None.
+        """
+        assert self.parser.parse("") is None
+
+    def test_parse_whitespace_returns_none(self) -> None:
+        """
+        Whitespace-only input should return None.
+        """
+        assert self.parser.parse("     ") is None
+
+==================================================================
+FILE: tests/unit/test_command_registry.py
+==================================================================
+"""
+Unit tests for the command registry.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from ai.command import Command
+from ai.command_registry import CommandRegistry
+
+
+class DummyCommand(Command):
+    """
+    Dummy command used for registry testing.
+    """
+
+    @property
+    def name(self) -> str:
+        return "dummy"
+
+    @property
+    def aliases(self) -> list[str]:
+        return ["d", "test"]
+
+    def execute(self, arguments: str) -> str:
+        return arguments
+
+
+class AnotherCommand(Command):
+    """
+    Another dummy command used for duplicate tests.
+    """
+
+    @property
+    def name(self) -> str:
+        return "another"
+
+    @property
+    def aliases(self) -> list[str]:
+        return ["a"]
+
+    def execute(self, arguments: str) -> str:
+        return arguments
+
+
+class DuplicateNameCommand(Command):
+    """
+    Uses the same primary command name.
+    """
+
+    @property
+    def name(self) -> str:
+        return "dummy"
+
+    def execute(self, arguments: str) -> str:
+        return arguments
+
+
+class DuplicateAliasCommand(Command):
+    """
+    Uses an alias that already exists.
+    """
+
+    @property
+    def name(self) -> str:
+        return "unique"
+
+    @property
+    def aliases(self) -> list[str]:
+        return ["d"]
+
+    def execute(self, arguments: str) -> str:
+        return arguments
+
+
+class TestCommandRegistry:
+    """
+    Tests for CommandRegistry.
+    """
+
+    def setup_method(self) -> None:
+        """
+        Create a fresh registry before each test.
+        """
+        self.registry = CommandRegistry()
+
+    def test_register_command(self) -> None:
+        """
+        Registering a command should make it retrievable.
+        """
+        command = DummyCommand()
+
+        self.registry.register(command)
+
+        assert self.registry.get("dummy") is command
+
+    def test_register_aliases(self) -> None:
+        """
+        Aliases should point to the same command.
+        """
+        command = DummyCommand()
+
+        self.registry.register(command)
+
+        assert self.registry.get("d") is command
+        assert self.registry.get("test") is command
+
+    def test_exists_returns_true(self) -> None:
+        """
+        Exists should return True for commands and aliases.
+        """
+        command = DummyCommand()
+
+        self.registry.register(command)
+
+        assert self.registry.exists("dummy")
+        assert self.registry.exists("d")
+        assert self.registry.exists("test")
+
+    def test_exists_returns_false(self) -> None:
+        """
+        Unknown commands should not exist.
+        """
+        assert not self.registry.exists("missing")
+
+    def test_get_returns_none(self) -> None:
+        """
+        Unknown commands should return None.
+        """
+        assert self.registry.get("missing") is None
+
+    def test_duplicate_command_name_raises(self) -> None:
+        """
+        Duplicate primary command names are not allowed.
+        """
+        self.registry.register(DummyCommand())
+
+        with pytest.raises(ValueError):
+            self.registry.register(DuplicateNameCommand())
+
+    def test_duplicate_alias_raises(self) -> None:
+        """
+        Duplicate aliases are not allowed.
+        """
+        self.registry.register(DummyCommand())
+
+        with pytest.raises(ValueError):
+            self.registry.register(DuplicateAliasCommand())
+
+    def test_list_commands_returns_sorted_primary_names(self) -> None:
+        """
+        Only primary command names should be listed in sorted order.
+        """
+        self.registry.register(DummyCommand())
+        self.registry.register(AnotherCommand())
+
+        assert self.registry.list_commands() == [
+            "another",
+            "dummy",
+        ]
+
+==================================================================
+FILE: tests/unit/test_help_command.py
+==================================================================
+"""
+Unit tests for the help command.
+"""
+
+from __future__ import annotations
+
+from ai.command_registry import CommandRegistry
+from ai.commands.help_command import HelpCommand
+from ai.command import Command
+
+
+class DummyCommand(Command):
+    """
+    Dummy command used for testing HelpCommand.
+    """
+
+    @property
+    def name(self) -> str:
+        return "dummy"
+
+    @property
+    def aliases(self) -> list[str]:
+        return ["d"]
+
+    @property
+    def category(self) -> str:
+        return "Testing"
+
+    @property
+    def description(self) -> str:
+        return "Dummy command."
+
+    @property
+    def usage(self) -> str:
+        return "dummy"
+
+    @property
+    def examples(self) -> list[str]:
+        return [
+            "dummy",
+            "d",
+        ]
+
+    def execute(self, arguments: str) -> str:
+        return arguments
+
+
+class TestHelpCommand:
+    """
+    Tests for HelpCommand.
+    """
+
+    def setup_method(self) -> None:
+        """
+        Create a fresh registry and help command.
+        """
+        self.registry = CommandRegistry()
+        self.help_command = HelpCommand(self.registry)
+
+    def test_no_registered_commands(self) -> None:
+        """
+        Help should report when no commands are registered.
+        """
+        assert (
+            self.help_command.execute("")
+            == "No commands are currently registered."
+        )
+
+    def test_general_help_lists_registered_commands(self) -> None:
+        """
+        General help should include registered commands.
+        """
+        self.registry.register(DummyCommand())
+
+        output = self.help_command.execute("")
+
+        assert "Nexus AI Commands" in output
+        assert "dummy" in output
+        assert "Dummy command." in output
+        assert "Testing" in output
+
+    def test_help_for_specific_command(self) -> None:
+        """
+        Detailed help should include command metadata.
+        """
+        self.registry.register(DummyCommand())
+
+        output = self.help_command.execute("dummy")
+
+        assert "Command: dummy" in output
+        assert "Dummy command." in output
+        assert "Testing" in output
+        assert "Aliases" in output
+        assert "d" in output
+        assert "Usage" in output
+        assert "Examples" in output
+
+    def test_help_works_with_alias(self) -> None:
+        """
+        Detailed help should work with aliases.
+        """
+        self.registry.register(DummyCommand())
+
+        output = self.help_command.execute("d")
+
+        assert "Command: dummy" in output
+
+    def test_unknown_command(self) -> None:
+        """
+        Unknown commands should return an error message.
+        """
+        output = self.help_command.execute("missing")
+
+        assert output == "Unknown command: missing"
+
+==================================================================
+FILE: tests/unit/test_history_command.py
+==================================================================
+"""
+Unit tests for the HistoryCommand.
+"""
+
+from __future__ import annotations
+
+from ai.commands.history_command import HistoryCommand
+from ai.history import History
+
+
+class TestHistoryCommand:
+    """
+    Tests for the HistoryCommand.
+    """
+
+    def test_empty_history(self) -> None:
+        """
+        The command should report when the history is empty.
+        """
+        history = History()
+        command = HistoryCommand(history)
+
+        result = command.execute("")
+
+        assert result == "Command history is empty."
+
+    def test_single_history_entry(self) -> None:
+        """
+        A single command should be displayed correctly.
+        """
+        history = History()
+        history.add("help")
+
+        command = HistoryCommand(history)
+
+        expected = (
+            "Command History\n"
+            "---------------\n"
+            "\n"
+            "1. help"
+        )
+
+        assert command.execute("") == expected
+
+    def test_multiple_history_entries(self) -> None:
+        """
+        Multiple commands should be displayed in execution order.
+        """
+        history = History()
+
+        history.add("help")
+        history.add("version")
+        history.add("date")
+
+        command = HistoryCommand(history)
+
+        expected = (
+            "Command History\n"
+            "---------------\n"
+            "\n"
+            "1. help\n"
+            "2. version\n"
+            "3. date"
+        )
+
+        assert command.execute("") == expected
+
+    def test_history_preserves_order(self) -> None:
+        """
+        Commands should appear in the same order they were executed.
+        """
+        history = History()
+
+        commands = [
+            "time",
+            "echo hello",
+            "calculate 5 + 5",
+            "history",
+        ]
+
+        for item in commands:
+            history.add(item)
+
+        command = HistoryCommand(history)
+
+        result = command.execute("")
+
+        for index, item in enumerate(commands, start=1):
+            assert f"{index}. {item}" in result
+
+    def test_execute_returns_string(self) -> None:
+        """
+        Execute should always return a string.
+        """
+        history = History()
+
+        command = HistoryCommand(history)
+
+        result = command.execute("")
+
+        assert isinstance(result, str)
+
+    def test_history_does_not_modify_storage(self) -> None:
+        """
+        Executing the history command must not change stored history.
+        """
+        history = History()
+
+        history.add("help")
+        history.add("version")
+
+        original = history.all().copy()
+
+        command = HistoryCommand(history)
+
+        command.execute("")
+
+        assert history.all() == original
+
+    def test_history_ignores_arguments(self) -> None:
+        """
+        Extra arguments should not affect the output.
+        """
+        history = History()
+
+        history.add("help")
+
+        command = HistoryCommand(history)
+
+        expected = (
+            "Command History\n"
+            "---------------\n"
+            "\n"
+            "1. help"
+        )
+
+        assert command.execute("anything here") == expected
+
+==================================================================
+FILE: tests/unit/test_memory_extractor.py
+==================================================================
+"""
+Unit tests for the MemoryExtractor.
+"""
+
+from __future__ import annotations
+
+from ai.memory_extractor import MemoryExtractor
+from ai.memory_importance import MemoryImportance
+from ai.memory_type import MemoryType
+
+
+class TestMemoryExtractor:
+    """
+    Tests for the MemoryExtractor.
+    """
+
+    def test_empty_message_returns_none(self) -> None:
+        """
+        Verify empty messages are ignored.
+        """
+        extractor = MemoryExtractor()
+
+        memory = extractor.extract("")
+
+        assert memory is None
+
+    def test_whitespace_message_returns_none(self) -> None:
+        """
+        Verify whitespace-only messages are ignored.
+        """
+        extractor = MemoryExtractor()
+
+        memory = extractor.extract("     ")
+
+        assert memory is None
+
+    def test_extract_user_memory(self) -> None:
+        """
+        Verify user identity memories are extracted.
+        """
+        extractor = MemoryExtractor()
+
+        memory = extractor.extract(
+            "My name is John"
+        )
+
+        assert memory is not None
+        assert memory.content == "My name is John"
+        assert memory.memory_type is MemoryType.USER
+        assert memory.importance is MemoryImportance.CRITICAL
+
+    def test_extract_preference_memory(self) -> None:
+        """
+        Verify preference memories are extracted.
+        """
+        extractor = MemoryExtractor()
+
+        memory = extractor.extract(
+            "I like Python"
+        )
+
+        assert memory is not None
+        assert memory.memory_type is MemoryType.PREFERENCE
+        assert memory.importance is MemoryImportance.HIGH
+
+    def test_extract_fact_memory(self) -> None:
+        """
+        Verify fact memories are extracted.
+        """
+        extractor = MemoryExtractor()
+
+        memory = extractor.extract(
+            "Remember that Paris is the capital of France"
+        )
+
+        assert memory is not None
+        assert memory.memory_type is MemoryType.FACT
+        assert memory.importance is MemoryImportance.MEDIUM
+
+    def test_non_memory_message_returns_none(self) -> None:
+        """
+        Verify ordinary conversation is ignored.
+        """
+        extractor = MemoryExtractor()
+
+        memory = extractor.extract(
+            "Hello, how are you?"
+        )
+
+        assert memory is None
+
+    def test_generated_memory_has_identifier(self) -> None:
+        """
+        Verify generated memories have a unique identifier.
+        """
+        extractor = MemoryExtractor()
+
+        memory = extractor.extract(
+            "I like Python"
+        )
+
+        assert memory is not None
+        assert memory.id != ""
+
+    def test_generated_memory_metadata_defaults(self) -> None:
+        """
+        Verify generated memories have empty metadata.
+        """
+        extractor = MemoryExtractor()
+
+        memory = extractor.extract(
+            "I like Python"
+        )
+
+        assert memory is not None
+        assert memory.metadata == {}
+
+    def test_generated_memory_access_count_defaults(self) -> None:
+        """
+        Verify generated memories start with zero accesses.
+        """
+        extractor = MemoryExtractor()
+
+        memory = extractor.extract(
+            "I like Python"
+        )
+
+        assert memory is not None
+        assert memory.access_count == 0
+
+    def test_generated_memory_timestamps_match(self) -> None:
+        """
+        Verify generated timestamps are initialized consistently.
+        """
+        extractor = MemoryExtractor()
+
+        memory = extractor.extract(
+            "I like Python"
+        )
+
+        assert memory is not None
+        assert memory.created_at == memory.updated_at
+        assert memory.created_at == memory.last_accessed
+
+    def test_detection_is_case_insensitive(self) -> None:
+        """
+        Verify extraction is case-insensitive.
+        """
+        extractor = MemoryExtractor()
+
+        memory = extractor.extract(
+            "i LIKE Python"
+        )
+
+        assert memory is not None
+        assert memory.memory_type is MemoryType.PREFERENCE
+
+    def test_extract_remember_statement(self) -> None:
+        """
+        Verify explicit remember statements are extracted.
+        """
+        extractor = MemoryExtractor()
+
+        memory = extractor.extract(
+            "remember milk tomorrow"
+        )
+
+        assert memory is not None
+        assert memory.memory_type is MemoryType.FACT
+
+==================================================================
+FILE: tests/unit/test_memory_importance.py
+==================================================================
+"""
+Unit tests for the MemoryImportance enumeration.
+"""
+
+from __future__ import annotations
+
+from ai.memory_importance import MemoryImportance
+
+
+class TestMemoryImportance:
+    """
+    Tests for the MemoryImportance enumeration.
+    """
+
+    def test_memory_importance_values(self) -> None:
+        """
+        Verify all importance values.
+        """
+        assert MemoryImportance.LOW.value == "low"
+        assert MemoryImportance.MEDIUM.value == "medium"
+        assert MemoryImportance.HIGH.value == "high"
+        assert MemoryImportance.CRITICAL.value == "critical"
+
+    def test_memory_importance_count(self) -> None:
+        """
+        Verify the number of importance levels.
+        """
+        assert len(MemoryImportance) == 4
+
+    def test_memory_importance_lookup(self) -> None:
+        """
+        Verify lookup by value.
+        """
+        assert MemoryImportance("low") is MemoryImportance.LOW
+        assert MemoryImportance("medium") is MemoryImportance.MEDIUM
+        assert MemoryImportance("high") is MemoryImportance.HIGH
+        assert MemoryImportance("critical") is MemoryImportance.CRITICAL
+
+    def test_memory_importance_names(self) -> None:
+        """
+        Verify enumeration names.
+        """
+        assert MemoryImportance.LOW.name == "LOW"
+        assert MemoryImportance.MEDIUM.name == "MEDIUM"
+        assert MemoryImportance.HIGH.name == "HIGH"
+        assert MemoryImportance.CRITICAL.name == "CRITICAL"
+
+==================================================================
+FILE: tests/unit/test_memory_integration.py
+==================================================================
+"""
+Integration tests for the Nexus AI memory system.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from ai.memory_importance import MemoryImportance
+from ai.memory_manager import MemoryManager
+from ai.memory_query import MemoryQuery
+from ai.memory_record import MemoryRecord
+from ai.memory_type import MemoryType
+from ai.sqlite_memory_repository import SQLiteMemoryRepository
+from database.sqlite_database import SQLiteDatabase
+
+
+class TestMemoryIntegration:
+    """
+    Integration tests for the memory system.
+    """
+
+    def create_manager(self) -> MemoryManager:
+        """
+        Create a fresh memory manager backed by an in-memory database.
+        """
+
+        database = SQLiteDatabase(":memory:")
+        repository = SQLiteMemoryRepository(database)
+
+        return MemoryManager(repository)
+
+    def create_memory(
+        self,
+        memory_id: str,
+        content: str,
+        memory_type: MemoryType = MemoryType.FACT,
+        importance: MemoryImportance = MemoryImportance.MEDIUM,
+    ) -> MemoryRecord:
+        """
+        Create a memory record.
+        """
+
+        now = datetime.now()
+
+        return MemoryRecord(
+            id=memory_id,
+            content=content,
+            memory_type=memory_type,
+            importance=importance,
+            created_at=now,
+            updated_at=now,
+            last_accessed=now,
+        )
+
+    def test_add_and_get_memory(self) -> None:
+        """
+        Verify a stored memory can be retrieved.
+        """
+
+        manager = self.create_manager()
+
+        memory = self.create_memory(
+            "1",
+            "Python is awesome",
+        )
+
+        manager.add_memory(memory)
+
+        retrieved = manager.get_memory("1")
+
+        assert retrieved is not None
+        assert retrieved.id == "1"
+        assert retrieved.content == "Python is awesome"
+
+    def test_memory_count(self) -> None:
+        """
+        Verify memory counting.
+        """
+
+        manager = self.create_manager()
+
+        assert manager.memory_count() == 0
+
+        manager.add_memory(
+            self.create_memory(
+                "1",
+                "Memory One",
+            )
+        )
+
+        manager.add_memory(
+            self.create_memory(
+                "2",
+                "Memory Two",
+            )
+        )
+
+        assert manager.memory_count() == 2
+
+    def test_search_memory(self) -> None:
+        """
+        Verify searching memories.
+        """
+
+        manager = self.create_manager()
+
+        manager.add_memory(
+            self.create_memory(
+                "1",
+                "I like Python",
+            )
+        )
+
+        manager.add_memory(
+            self.create_memory(
+                "2",
+                "I like Java",
+            )
+        )
+
+        result = manager.search_memories(
+            MemoryQuery(
+                text="Python",
+            )
+        )
+
+        assert result.returned_count == 1
+        assert result.memories[0].content == "I like Python"
+
+    def test_delete_memory(self) -> None:
+        """
+        Verify deleting memories.
+        """
+
+        manager = self.create_manager()
+
+        manager.add_memory(
+            self.create_memory(
+                "1",
+                "Delete me",
+            )
+        )
+
+        assert manager.memory_count() == 1
+
+        manager.delete_memory("1")
+
+        assert manager.memory_count() == 0
+
+    def test_clear_memories(self) -> None:
+        """
+        Verify clearing all memories.
+        """
+
+        manager = self.create_manager()
+
+        manager.add_memory(
+            self.create_memory(
+                "1",
+                "A",
+            )
+        )
+
+        manager.add_memory(
+            self.create_memory(
+                "2",
+                "B",
+            )
+        )
+
+        assert manager.memory_count() == 2
+
+        manager.clear_memories()
+
+        assert manager.memory_count() == 0
+
+    def test_update_memory(self) -> None:
+        """
+        Verify updating an existing memory.
+        """
+
+        manager = self.create_manager()
+
+        memory = self.create_memory(
+            "1",
+            "Old Content",
+        )
+
+        manager.add_memory(memory)
+
+        memory.content = "New Content"
+
+        manager.update_memory(memory)
+
+        updated = manager.get_memory("1")
+
+        assert updated is not None
+        assert updated.content == "New Content"
+
+    def test_list_memories(self) -> None:
+        """
+        Verify listing all memories.
+        """
+
+        manager = self.create_manager()
+
+        manager.add_memory(
+            self.create_memory(
+                "1",
+                "First",
+            )
+        )
+
+        manager.add_memory(
+            self.create_memory(
+                "2",
+                "Second",
+            )
+        )
+
+        memories = manager.list_memories()
+
+        assert len(memories) == 2
+
+    def test_search_by_memory_type(self) -> None:
+        """
+        Verify filtering by memory type.
+        """
+
+        manager = self.create_manager()
+
+        manager.add_memory(
+            self.create_memory(
+                "1",
+                "User Memory",
+                memory_type=MemoryType.USER,
+            )
+        )
+
+        manager.add_memory(
+            self.create_memory(
+                "2",
+                "Fact Memory",
+                memory_type=MemoryType.FACT,
+            )
+        )
+
+        result = manager.search_memories(
+            MemoryQuery(
+                memory_types=[
+                    MemoryType.USER,
+                ]
+            )
+        )
+
+        assert result.returned_count == 1
+        assert result.memories[0].memory_type == MemoryType.USER
+
+==================================================================
+FILE: tests/unit/test_memory_manager.py
+==================================================================
+"""Unit tests for the MemoryManager."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from ai.memory_importance import MemoryImportance
+from ai.memory_manager import MemoryManager
+from ai.memory_query import MemoryQuery
+from ai.memory_record import MemoryRecord
+from ai.memory_repository import MemoryRepository
+from ai.memory_result import MemoryResult
+from ai.memory_type import MemoryType
+
+
+class FakeMemoryRepository(MemoryRepository):
+    """Simple in-memory repository used for testing."""
+
+    def __init__(self) -> None:
+        self._memories: dict[str, MemoryRecord] = {}
+
+    def add(self, memory: MemoryRecord) -> None:
+        self._memories[memory.id] = memory
+
+    def get(self, memory_id: str) -> MemoryRecord | None:
+        return self._memories.get(memory_id)
+
+    def update(self, memory: MemoryRecord) -> None:
+        self._memories[memory.id] = memory
+
+    def delete(self, memory_id: str) -> None:
+        self._memories.pop(memory_id, None)
+
+    def search(self, query: MemoryQuery) -> MemoryResult:
+        memories = list(self._memories.values())
+
+        if query.text:
+            memories = [
+                memory
+                for memory in memories
+                if query.text.lower() in memory.content.lower()
+            ]
+
+        if query.memory_types:
+            memories = [
+                memory
+                for memory in memories
+                if memory.memory_type in query.memory_types
+            ]
+
+        memories = memories[: query.limit]
+
+        return MemoryResult(
+            memories=memories,
+            total_matches=len(memories),
+            returned_count=len(memories),
+            truncated=False,
+        )
+
+    def list_all(self) -> list[MemoryRecord]:
+        return list(self._memories.values())
+
+    def clear(self) -> None:
+        self._memories.clear()
+
+    def count(self) -> int:
+        return len(self._memories)
+
+
+def create_memory(
+    memory_id: str,
+    content: str,
+) -> MemoryRecord:
+    """Create a memory for testing."""
+
+    now = datetime.now()
+
+    return MemoryRecord(
+        id=memory_id,
+        content=content,
+        memory_type=MemoryType.FACT,
+        importance=MemoryImportance.MEDIUM,
+        created_at=now,
+        updated_at=now,
+        last_accessed=now,
+        access_count=0,
+        metadata={},
+    )
+
+
+def create_manager() -> MemoryManager:
+    """Create a memory manager with a fake repository."""
+    return MemoryManager(FakeMemoryRepository())
+
+
+def test_add_memory() -> None:
+    """Memory should be stored."""
+
+    manager = create_manager()
+
+    memory = create_memory("1", "Python")
+
+    manager.add_memory(memory)
+
+    assert manager.memory_count() == 1
+
+
+def test_get_memory() -> None:
+    """Stored memory should be retrievable."""
+
+    manager = create_manager()
+
+    memory = create_memory("1", "Python")
+
+    manager.add_memory(memory)
+
+    retrieved = manager.get_memory("1")
+
+    assert retrieved is not None
+    assert retrieved.id == "1"
+    assert retrieved.content == "Python"
+
+
+def test_get_missing_memory() -> None:
+    """Unknown memories should return None."""
+
+    manager = create_manager()
+
+    assert manager.get_memory("missing") is None
+
+
+def test_update_memory() -> None:
+    """Updated memory should be returned."""
+
+    manager = create_manager()
+
+    memory = create_memory("1", "Old")
+
+    manager.add_memory(memory)
+
+    memory.content = "New"
+
+    manager.update_memory(memory)
+
+    updated = manager.get_memory("1")
+
+    assert updated is not None
+    assert updated.content == "New"
+
+
+def test_delete_memory() -> None:
+    """Deleted memory should no longer exist."""
+
+    manager = create_manager()
+
+    manager.add_memory(create_memory("1", "Delete"))
+
+    manager.delete_memory("1")
+
+    assert manager.get_memory("1") is None
+    assert manager.memory_count() == 0
+
+
+def test_list_memories() -> None:
+    """All memories should be returned."""
+
+    manager = create_manager()
+
+    manager.add_memory(create_memory("1", "One"))
+    manager.add_memory(create_memory("2", "Two"))
+
+    memories = manager.list_memories()
+
+    assert len(memories) == 2
+
+
+def test_search_memories() -> None:
+    """Search should delegate to the repository."""
+
+    manager = create_manager()
+
+    manager.add_memory(create_memory("1", "Python"))
+    manager.add_memory(create_memory("2", "Java"))
+
+    result = manager.search_memories(
+        MemoryQuery(text="Python")
+    )
+
+    assert result.returned_count == 1
+    assert result.memories[0].content == "Python"
+
+
+def test_clear_memories() -> None:
+    """All memories should be removed."""
+
+    manager = create_manager()
+
+    manager.add_memory(create_memory("1", "One"))
+    manager.add_memory(create_memory("2", "Two"))
+
+    manager.clear_memories()
+
+    assert manager.memory_count() == 0
+    assert manager.list_memories() == []
+
+
+def test_memory_count() -> None:
+    """The memory count should be correct."""
+
+    manager = create_manager()
+
+    assert manager.memory_count() == 0
+
+    manager.add_memory(create_memory("1", "One"))
+    manager.add_memory(create_memory("2", "Two"))
+    manager.add_memory(create_memory("3", "Three"))
+
+    assert manager.memory_count() == 3
+
+==================================================================
+FILE: tests/unit/test_memory_query.py
+==================================================================
+"""
+Unit tests for the MemoryQuery model.
+"""
+
+from __future__ import annotations
+
+from ai.memory_importance import MemoryImportance
+from ai.memory_query import MemoryQuery
+from ai.memory_type import MemoryType
+
+
+class TestMemoryQuery:
+    """
+    Tests for the MemoryQuery model.
+    """
+
+    def test_default_query(self) -> None:
+        """
+        Verify a newly created query uses the default values.
+        """
+        query = MemoryQuery()
+
+        assert query.text == ""
+        assert query.memory_types == []
+        assert query.minimum_importance is None
+        assert query.limit == 10
+
+    def test_custom_query(self) -> None:
+        """
+        Verify custom query values are stored.
+        """
+        query = MemoryQuery(
+            text="python",
+            memory_types=[
+                MemoryType.FACT,
+                MemoryType.USER,
+            ],
+            minimum_importance=MemoryImportance.HIGH,
+            limit=5,
+        )
+
+        assert query.text == "python"
+        assert query.memory_types == [
+            MemoryType.FACT,
+            MemoryType.USER,
+        ]
+        assert query.minimum_importance is MemoryImportance.HIGH
+        assert query.limit == 5
+
+    def test_empty_memory_types(self) -> None:
+        """
+        Verify memory types default to an empty list.
+        """
+        query = MemoryQuery()
+
+        assert query.memory_types == []
+
+    def test_default_limit(self) -> None:
+        """
+        Verify the default search limit.
+        """
+        query = MemoryQuery()
+
+        assert query.limit == 10
+
+    def test_no_minimum_importance(self) -> None:
+        """
+        Verify the default minimum importance.
+        """
+        query = MemoryQuery()
+
+        assert query.minimum_importance is None
+
+==================================================================
+FILE: tests/unit/test_memory_record.py
+==================================================================
+"""
+Unit tests for the MemoryRecord model.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from ai.memory_importance import MemoryImportance
+from ai.memory_record import MemoryRecord
+from ai.memory_type import MemoryType
+
+
+class TestMemoryRecord:
+    """
+    Tests for the MemoryRecord model.
+    """
+
+    def test_create_memory_record(self) -> None:
+        """
+        Verify a memory record can be created.
+        """
+        now = datetime.now()
+
+        memory = MemoryRecord(
+            id="memory-1",
+            content="Python is a programming language.",
+            memory_type=MemoryType.FACT,
+            importance=MemoryImportance.MEDIUM,
+            created_at=now,
+            updated_at=now,
+            last_accessed=now,
+        )
+
+        assert memory.id == "memory-1"
+        assert memory.content == "Python is a programming language."
+        assert memory.memory_type is MemoryType.FACT
+        assert memory.importance is MemoryImportance.MEDIUM
+        assert memory.created_at == now
+        assert memory.updated_at == now
+        assert memory.last_accessed == now
+        assert memory.access_count == 0
+        assert memory.metadata == {}
+
+    def test_custom_access_count(self) -> None:
+        """
+        Verify a custom access count is stored.
+        """
+        now = datetime.now()
+
+        memory = MemoryRecord(
+            id="memory-2",
+            content="Important memory",
+            memory_type=MemoryType.LONG_TERM,
+            importance=MemoryImportance.HIGH,
+            created_at=now,
+            updated_at=now,
+            last_accessed=now,
+            access_count=5,
+        )
+
+        assert memory.access_count == 5
+
+    def test_custom_metadata(self) -> None:
+        """
+        Verify metadata is stored.
+        """
+        now = datetime.now()
+
+        metadata = {
+            "source": "conversation",
+            "topic": "python",
+        }
+
+        memory = MemoryRecord(
+            id="memory-3",
+            content="Metadata test",
+            memory_type=MemoryType.CONVERSATION,
+            importance=MemoryImportance.LOW,
+            created_at=now,
+            updated_at=now,
+            last_accessed=now,
+            metadata=metadata,
+        )
+
+        assert memory.metadata == metadata
+
+    def test_default_metadata_is_empty(self) -> None:
+        """
+        Verify metadata defaults to an empty dictionary.
+        """
+        now = datetime.now()
+
+        memory = MemoryRecord(
+            id="memory-4",
+            content="Default metadata",
+            memory_type=MemoryType.USER,
+            importance=MemoryImportance.MEDIUM,
+            created_at=now,
+            updated_at=now,
+            last_accessed=now,
+        )
+
+        assert memory.metadata == {}
+
+    def test_default_access_count_is_zero(self) -> None:
+        """
+        Verify the default access count.
+        """
+        now = datetime.now()
+
+        memory = MemoryRecord(
+            id="memory-5",
+            content="Access count",
+            memory_type=MemoryType.SYSTEM,
+            importance=MemoryImportance.CRITICAL,
+            created_at=now,
+            updated_at=now,
+            last_accessed=now,
+        )
+
+        assert memory.access_count == 0
+
+==================================================================
+FILE: tests/unit/test_memory_repository.py
+==================================================================
+"""Unit tests for the SQLiteMemoryRepository."""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from ai.memory_importance import MemoryImportance
+from ai.memory_query import MemoryQuery
+from ai.memory_record import MemoryRecord
+from ai.memory_type import MemoryType
+from ai.sqlite_memory_repository import SQLiteMemoryRepository
+from database.sqlite_database import SQLiteDatabase
+
+
+def create_memory(
+    memory_id: str,
+    content: str,
+    memory_type: MemoryType = MemoryType.FACT,
+    importance: MemoryImportance = MemoryImportance.MEDIUM,
+) -> MemoryRecord:
+    """Create a test memory."""
+
+    now = datetime.now()
+
+    return MemoryRecord(
+        id=memory_id,
+        content=content,
+        memory_type=memory_type,
+        importance=importance,
+        created_at=now,
+        updated_at=now,
+        last_accessed=now,
+        access_count=0,
+        metadata={},
+    )
+
+
+def create_repository() -> SQLiteMemoryRepository:
+    """Create an in-memory repository."""
+
+    database = SQLiteDatabase(":memory:")
+    return SQLiteMemoryRepository(database)
+
+
+def test_add_and_get_memory() -> None:
+    """A stored memory can be retrieved."""
+
+    repository = create_repository()
+
+    memory = create_memory(
+        "1",
+        "Python is awesome",
+    )
+
+    repository.add(memory)
+
+    retrieved = repository.get("1")
+
+    assert retrieved is not None
+    assert retrieved.id == memory.id
+    assert retrieved.content == memory.content
+    assert retrieved.memory_type == memory.memory_type
+    assert retrieved.importance == memory.importance
+
+
+def test_get_unknown_memory_returns_none() -> None:
+    """Unknown IDs should return None."""
+
+    repository = create_repository()
+
+    assert repository.get("missing") is None
+
+
+def test_update_memory() -> None:
+    """Updating a memory should persist the changes."""
+
+    repository = create_repository()
+
+    memory = create_memory(
+        "1",
+        "Old content",
+    )
+
+    repository.add(memory)
+
+    memory.content = "New content"
+
+    repository.update(memory)
+
+    updated = repository.get("1")
+
+    assert updated is not None
+    assert updated.content == "New content"
+
+
+def test_delete_memory() -> None:
+    """Deleting a memory removes it."""
+
+    repository = create_repository()
+
+    memory = create_memory(
+        "1",
+        "Delete me",
+    )
+
+    repository.add(memory)
+
+    repository.delete("1")
+
+    assert repository.get("1") is None
+
+
+def test_count_memories() -> None:
+    """Repository count should match stored memories."""
+
+    repository = create_repository()
+
+    assert repository.count() == 0
+
+    repository.add(create_memory("1", "One"))
+    repository.add(create_memory("2", "Two"))
+
+    assert repository.count() == 2
+
+
+def test_clear_repository() -> None:
+    """Clearing removes every memory."""
+
+    repository = create_repository()
+
+    repository.add(create_memory("1", "One"))
+    repository.add(create_memory("2", "Two"))
+
+    assert repository.count() == 2
+
+    repository.clear()
+
+    assert repository.count() == 0
+    assert repository.list_all() == []
+
+
+def test_list_all_returns_all_memories() -> None:
+    """list_all should return every stored memory."""
+
+    repository = create_repository()
+
+    repository.add(create_memory("1", "One"))
+    repository.add(create_memory("2", "Two"))
+    repository.add(create_memory("3", "Three"))
+
+    memories = repository.list_all()
+
+    assert len(memories) == 3
+
+
+def test_search_by_text() -> None:
+    """Search should filter by text."""
+
+    repository = create_repository()
+
+    repository.add(create_memory("1", "I like Python"))
+    repository.add(create_memory("2", "I like Java"))
+
+    result = repository.search(
+        MemoryQuery(
+            text="Python",
+        )
+    )
+
+    assert result.total_matches == 1
+    assert result.returned_count == 1
+    assert result.memories[0].content == "I like Python"
+
+
+def test_search_by_memory_type() -> None:
+    """Search should filter by memory type."""
+
+    repository = create_repository()
+
+    repository.add(
+        create_memory(
+            "1",
+            "User profile",
+            memory_type=MemoryType.USER,
+        )
+    )
+
+    repository.add(
+        create_memory(
+            "2",
+            "Conversation",
+            memory_type=MemoryType.CONVERSATION,
+        )
+    )
+
+    result = repository.search(
+        MemoryQuery(
+            memory_types=[MemoryType.USER],
+        )
+    )
+
+    assert result.total_matches == 1
+    assert result.memories[0].memory_type == MemoryType.USER
+
+
+def test_search_by_importance() -> None:
+    """Search should filter by minimum importance."""
+
+    repository = create_repository()
+
+    repository.add(
+        create_memory(
+            "1",
+            "Low",
+            importance=MemoryImportance.LOW,
+        )
+    )
+
+    repository.add(
+        create_memory(
+            "2",
+            "Critical",
+            importance=MemoryImportance.CRITICAL,
+        )
+    )
+
+    result = repository.search(
+        MemoryQuery(
+            minimum_importance=MemoryImportance.HIGH,
+        )
+    )
+
+    assert result.total_matches == 1
+    assert result.memories[0].importance == MemoryImportance.CRITICAL
+
+
+def test_search_limit() -> None:
+    """Search should respect the requested limit."""
+
+    repository = create_repository()
+
+    for i in range(5):
+        repository.add(
+            create_memory(
+                str(i),
+                f"Memory {i}",
+            )
+        )
+
+    result = repository.search(
+        MemoryQuery(
+            limit=2,
+        )
+    )
+
+    assert result.total_matches == 5
+    assert result.returned_count == 2
+    assert result.truncated is True
+    assert len(result.memories) == 2
+
+==================================================================
+FILE: tests/unit/test_memory_result.py
+==================================================================
+"""
+Unit tests for the MemoryResult model.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from ai.memory_importance import MemoryImportance
+from ai.memory_record import MemoryRecord
+from ai.memory_result import MemoryResult
+from ai.memory_type import MemoryType
+
+
+class TestMemoryResult:
+    """
+    Tests for the MemoryResult model.
+    """
+
+    @staticmethod
+    def create_memory(memory_id: str, content: str) -> MemoryRecord:
+        """
+        Create a memory record for testing.
+
+        Args:
+            memory_id: Unique memory identifier.
+            content: Memory content.
+
+        Returns:
+            A populated memory record.
+        """
+        now = datetime.now()
+
+        return MemoryRecord(
+            id=memory_id,
+            content=content,
+            memory_type=MemoryType.FACT,
+            importance=MemoryImportance.MEDIUM,
+            created_at=now,
+            updated_at=now,
+            last_accessed=now,
+        )
+
+    def test_default_result(self) -> None:
+        """
+        Verify the default memory result.
+        """
+        result = MemoryResult()
+
+        assert result.memories == []
+        assert result.total_matches == 0
+        assert result.returned_count == 0
+        assert result.truncated is False
+
+    def test_result_with_memories(self) -> None:
+        """
+        Verify a populated memory result.
+        """
+        memories = [
+            self.create_memory("1", "Python"),
+            self.create_memory("2", "SQLite"),
+        ]
+
+        result = MemoryResult(
+            memories=memories,
+            total_matches=2,
+            returned_count=2,
+            truncated=False,
+        )
+
+        assert result.memories == memories
+        assert result.total_matches == 2
+        assert result.returned_count == 2
+        assert result.truncated is False
+
+    def test_truncated_result(self) -> None:
+        """
+        Verify a truncated search result.
+        """
+        memories = [
+            self.create_memory("1", "Memory"),
+        ]
+
+        result = MemoryResult(
+            memories=memories,
+            total_matches=10,
+            returned_count=1,
+            truncated=True,
+        )
+
+        assert result.total_matches == 10
+        assert result.returned_count == 1
+        assert result.truncated is True
+
+    def test_empty_memory_list(self) -> None:
+        """
+        Verify an empty result.
+        """
+        result = MemoryResult(
+            memories=[],
+            total_matches=0,
+            returned_count=0,
+            truncated=False,
+        )
+
+        assert len(result.memories) == 0
+
+    def test_returned_count_matches_memories(self) -> None:
+        """
+        Verify the returned count matches the number of memories.
+        """
+        memories = [
+            self.create_memory("1", "One"),
+            self.create_memory("2", "Two"),
+            self.create_memory("3", "Three"),
+        ]
+
+        result = MemoryResult(
+            memories=memories,
+            total_matches=3,
+            returned_count=len(memories),
+            truncated=False,
+        )
+
+        assert result.returned_count == len(result.memories)
+
+==================================================================
+FILE: tests/unit/test_memory_type.py
+==================================================================
+"""
+Unit tests for the MemoryType enumeration.
+"""
+
+from __future__ import annotations
+
+from ai.memory_type import MemoryType
+
+
+class TestMemoryType:
+    """
+    Tests for the MemoryType enumeration.
+    """
+
+    def test_memory_type_values(self) -> None:
+        """
+        Verify all memory type values.
+        """
+        assert MemoryType.SHORT_TERM.value == "short_term"
+        assert MemoryType.LONG_TERM.value == "long_term"
+        assert MemoryType.SYSTEM.value == "system"
+        assert MemoryType.USER.value == "user"
+        assert MemoryType.FACT.value == "fact"
+        assert MemoryType.PREFERENCE.value == "preference"
+        assert MemoryType.TASK.value == "task"
+        assert MemoryType.CONVERSATION.value == "conversation"
+
+    def test_memory_type_count(self) -> None:
+        """
+        Verify the number of memory types.
+        """
+        assert len(MemoryType) == 8
+
+    def test_memory_type_lookup(self) -> None:
+        """
+        Verify lookup by value.
+        """
+        assert MemoryType("short_term") is MemoryType.SHORT_TERM
+        assert MemoryType("long_term") is MemoryType.LONG_TERM
+        assert MemoryType("system") is MemoryType.SYSTEM
+        assert MemoryType("user") is MemoryType.USER
+        assert MemoryType("fact") is MemoryType.FACT
+        assert MemoryType("preference") is MemoryType.PREFERENCE
+        assert MemoryType("task") is MemoryType.TASK
+        assert MemoryType("conversation") is MemoryType.CONVERSATION
+
+    def test_memory_type_names(self) -> None:
+        """
+        Verify enumeration names.
+        """
+        assert MemoryType.SHORT_TERM.name == "SHORT_TERM"
+        assert MemoryType.LONG_TERM.name == "LONG_TERM"
+        assert MemoryType.SYSTEM.name == "SYSTEM"
+        assert MemoryType.USER.name == "USER"
+        assert MemoryType.FACT.name == "FACT"
+        assert MemoryType.PREFERENCE.name == "PREFERENCE"
+        assert MemoryType.TASK.name == "TASK"
+        assert MemoryType.CONVERSATION.name == "CONVERSATION"
+
+==================================================================
+FILE: tests/unit/test_plan.py
+==================================================================
+"""
+Unit tests for the Plan model.
+"""
+
+from __future__ import annotations
+
+from ai.plan import Plan
+from ai.plan_status import PlanStatus
+from ai.plan_step import PlanStep
+
+
+class TestPlan:
+    """
+    Tests for the Plan model.
+    """
+
+    def test_empty_plan(self) -> None:
+        """
+        Verify a newly created plan.
+        """
+        plan = Plan(goal="Build project")
+
+        assert plan.goal == "Build project"
+        assert plan.step_count() == 0
+        assert plan.completed_steps() == []
+        assert plan.pending_steps() == []
+        assert not plan.is_complete()
+
+    def test_add_step(self) -> None:
+        """
+        Verify adding a step.
+        """
+        plan = Plan(goal="Demo")
+
+        step = PlanStep(
+            id=1,
+            title="Create folder",
+        )
+
+        plan.add_step(step)
+
+        assert plan.step_count() == 1
+        assert plan.steps[0] == step
+
+    def test_pending_steps(self) -> None:
+        """
+        Verify pending step detection.
+        """
+        plan = Plan(goal="Demo")
+
+        plan.add_step(
+            PlanStep(
+                id=1,
+                title="A",
+            )
+        )
+
+        plan.add_step(
+            PlanStep(
+                id=2,
+                title="B",
+                status=PlanStatus.COMPLETED,
+            )
+        )
+
+        pending = plan.pending_steps()
+
+        assert len(pending) == 1
+        assert pending[0].id == 1
+
+    def test_completed_steps(self) -> None:
+        """
+        Verify completed step detection.
+        """
+        plan = Plan(goal="Demo")
+
+        plan.add_step(
+            PlanStep(
+                id=1,
+                title="A",
+                status=PlanStatus.COMPLETED,
+            )
+        )
+
+        completed = plan.completed_steps()
+
+        assert len(completed) == 1
+        assert completed[0].id == 1
+
+    def test_is_complete(self) -> None:
+        """
+        Verify completion detection.
+        """
+        plan = Plan(goal="Demo")
+
+        plan.add_step(
+            PlanStep(
+                id=1,
+                title="A",
+                status=PlanStatus.COMPLETED,
+            )
+        )
+
+        plan.add_step(
+            PlanStep(
+                id=2,
+                title="B",
+                status=PlanStatus.COMPLETED,
+            )
+        )
+
+        assert plan.is_complete()
+
+    def test_is_not_complete(self) -> None:
+        """
+        Verify incomplete plans.
+        """
+        plan = Plan(goal="Demo")
+
+        plan.add_step(
+            PlanStep(
+                id=1,
+                title="A",
+                status=PlanStatus.COMPLETED,
+            )
+        )
+
+        plan.add_step(
+            PlanStep(
+                id=2,
+                title="B",
+            )
+        )
+
+        assert not plan.is_complete()
+
+==================================================================
+FILE: tests/unit/test_plan_formatter.py
+==================================================================
+"""
+Unit tests for the PlanFormatter.
+"""
+
+from __future__ import annotations
+
+from ai.plan import Plan
+from ai.plan_formatter import PlanFormatter
+from ai.plan_step import PlanStep
+
+
+class TestPlanFormatter:
+    """
+    Tests for the PlanFormatter.
+    """
+
+    def test_empty_plan(self) -> None:
+        """
+        Empty plans should display a placeholder.
+        """
+        plan = Plan(goal="Demo")
+
+        text = PlanFormatter.format(plan)
+
+        assert "Goal: Demo" in text
+        assert "No steps available." in text
+
+    def test_single_step(self) -> None:
+        """
+        Single-step plans should be formatted correctly.
+        """
+        plan = Plan(goal="Demo")
+
+        plan.add_step(
+            PlanStep(
+                id=1,
+                title="Create folder Demo",
+            )
+        )
+
+        text = PlanFormatter.format(plan)
+
+        assert "Goal: Demo" in text
+        assert "1. Create folder Demo" in text
+
+    def test_multiple_steps(self) -> None:
+        """
+        Multiple-step plans should preserve order.
+        """
+        plan = Plan(goal="Demo")
+
+        plan.add_step(
+            PlanStep(
+                id=1,
+                title="Create folder Demo",
+            )
+        )
+
+        plan.add_step(
+            PlanStep(
+                id=2,
+                title="Create main.py",
+            )
+        )
+
+        text = PlanFormatter.format(plan)
+
+        assert "1. Create folder Demo" in text
+        assert "2. Create main.py" in text
+
+    def test_description(self) -> None:
+        """
+        Step descriptions should be displayed.
+        """
+        plan = Plan(goal="Demo")
+
+        plan.add_step(
+            PlanStep(
+                id=1,
+                title="Create folder Demo",
+                description="Creates the project directory.",
+            )
+        )
+
+        text = PlanFormatter.format(plan)
+
+        assert "Creates the project directory." in text
+
+==================================================================
+FILE: tests/unit/test_plan_status.py
+==================================================================
+"""
+Unit tests for the PlanStatus enum.
+"""
+
+from __future__ import annotations
+
+from ai.plan_status import PlanStatus
+
+
+class TestPlanStatus:
+    """
+    Tests for the PlanStatus enum.
+    """
+
+    def test_enum_values(self) -> None:
+        """
+        Verify all enum values.
+        """
+        assert PlanStatus.PENDING.value == "pending"
+        assert PlanStatus.RUNNING.value == "running"
+        assert PlanStatus.COMPLETED.value == "completed"
+        assert PlanStatus.FAILED.value == "failed"
+        assert PlanStatus.SKIPPED.value == "skipped"
+
+    def test_enum_member_count(self) -> None:
+        """
+        Verify the number of enum members.
+        """
+        assert len(PlanStatus) == 5
+
+==================================================================
+FILE: tests/unit/test_plan_step.py
+==================================================================
+"""
+Unit tests for the PlanStep model.
+"""
+
+from __future__ import annotations
+
+from ai.plan_status import PlanStatus
+from ai.plan_step import PlanStep
+
+
+class TestPlanStep:
+    """
+    Tests for the PlanStep model.
+    """
+
+    def test_default_values(self) -> None:
+        """
+        Verify default values.
+        """
+        step = PlanStep(
+            id=1,
+            title="Create folder",
+        )
+
+        assert step.id == 1
+        assert step.title == "Create folder"
+        assert step.description == ""
+        assert step.status == PlanStatus.PENDING
+        assert step.depends_on == []
+
+    def test_custom_values(self) -> None:
+        """
+        Verify custom initialization.
+        """
+        step = PlanStep(
+            id=2,
+            title="Create file",
+            description="Create main.py",
+            status=PlanStatus.RUNNING,
+            depends_on=[1],
+        )
+
+        assert step.id == 2
+        assert step.title == "Create file"
+        assert step.description == "Create main.py"
+        assert step.status == PlanStatus.RUNNING
+        assert step.depends_on == [1]
+
+==================================================================
+FILE: tests/unit/test_planner.py
+==================================================================
+"""
+Unit tests for the Planner.
+"""
+
+from __future__ import annotations
+
+from ai.plan_status import PlanStatus
+from ai.planner import Planner
+
+
+class TestPlanner:
+    """
+    Tests for the Planner.
+    """
+
+    def setup_method(self) -> None:
+        """
+        Create a fresh planner before each test.
+        """
+        self.planner = Planner()
+
+    def test_empty_goal(self) -> None:
+        """
+        An empty goal should produce an empty plan.
+        """
+        plan = self.planner.create_plan("")
+
+        assert plan.goal == ""
+        assert plan.step_count() == 0
+        assert not plan.is_complete()
+
+    def test_goal_is_trimmed(self) -> None:
+        """
+        Leading and trailing whitespace should be removed.
+        """
+        plan = self.planner.create_plan("   Open calculator   ")
+
+        assert plan.goal == "Open calculator"
+
+    def test_single_step_plan(self) -> None:
+        """
+        A simple goal should create one plan step.
+        """
+        plan = self.planner.create_plan("Open calculator")
+
+        assert plan.step_count() == 1
+
+    def test_step_id(self) -> None:
+        """
+        The first step should have ID 1.
+        """
+        plan = self.planner.create_plan("Open calculator")
+
+        assert plan.steps[0].id == 1
+
+    def test_step_title(self) -> None:
+        """
+        The step title should match the goal.
+        """
+        plan = self.planner.create_plan("Open calculator")
+
+        assert plan.steps[0].title == "Open calculator"
+
+    def test_step_description(self) -> None:
+        """
+        The default description should be assigned.
+        """
+        plan = self.planner.create_plan("Open calculator")
+
+        assert (
+            plan.steps[0].description
+            == "Execute the requested task."
+        )
+
+    def test_step_default_status(self) -> None:
+        """
+        New steps should start in the pending state.
+        """
+        plan = self.planner.create_plan("Open calculator")
+
+        assert (
+            plan.steps[0].status
+            == PlanStatus.PENDING
+        )
+
+    def test_pending_steps(self) -> None:
+        """
+        The created step should appear in pending steps.
+        """
+        plan = self.planner.create_plan("Open calculator")
+
+        assert len(plan.pending_steps()) == 1
+
+    def test_completed_steps_initially_empty(self) -> None:
+        """
+        A new plan should not contain completed steps.
+        """
+        plan = self.planner.create_plan("Open calculator")
+
+        assert plan.completed_steps() == []
+
+    def test_plan_is_not_complete(self) -> None:
+        """
+        A new plan should not be complete.
+        """
+        plan = self.planner.create_plan("Open calculator")
+
+        assert not plan.is_complete()
+
+==================================================================
+FILE: tests/unit/test_planner_rules.py
+==================================================================
+"""
+Unit tests for rule-based planning.
+"""
+
+from __future__ import annotations
+
+from ai.planner import Planner
+
+
+class TestPlannerRules:
+    """
+    Tests for the rule-based planner.
+    """
+
+    def setup_method(self) -> None:
+        self.planner = Planner()
+
+    def test_python_project_plan(self) -> None:
+        """
+        A Python project request should generate four steps.
+        """
+        plan = self.planner.create_plan(
+            "Create a Python project called Demo"
+        )
+
+        assert plan.goal == "Create a Python project called Demo"
+        assert plan.step_count() == 4
+
+    def test_project_folder_step(self) -> None:
+        """
+        The first step should create the project folder.
+        """
+        plan = self.planner.create_plan(
+            "Create a Python project called Demo"
+        )
+
+        assert (
+            plan.steps[0].title
+            == 'Create project folder "Demo"'
+        )
+
+    def test_main_file_step(self) -> None:
+        """
+        The second step should create main.py.
+        """
+        plan = self.planner.create_plan(
+            "Create a Python project called Demo"
+        )
+
+        assert plan.steps[1].title == "Create main.py"
+
+    def test_requirements_step(self) -> None:
+        """
+        The third step should create requirements.txt.
+        """
+        plan = self.planner.create_plan(
+            "Create a Python project called Demo"
+        )
+
+        assert (
+            plan.steps[2].title
+            == "Create requirements.txt"
+        )
+
+    def test_verify_step(self) -> None:
+        """
+        The final step should verify the project.
+        """
+        plan = self.planner.create_plan(
+            "Create a Python project called Demo"
+        )
+
+        assert (
+            plan.steps[3].title
+            == "Verify project structure"
+        )
+
+    def test_step_ids_are_sequential(self) -> None:
+        """
+        Step IDs should start at one and increment.
+        """
+        plan = self.planner.create_plan(
+            "Create a Python project called Demo"
+        )
+
+        ids = [step.id for step in plan.steps]
+
+        assert ids == [1, 2, 3, 4]
+
+    def test_generic_request_fallback(self) -> None:
+        """
+        Unknown requests should fall back to a single step.
+        """
+        plan = self.planner.create_plan(
+            "Open Calculator"
+        )
+
+        assert plan.step_count() == 1
+        assert plan.steps[0].title == "Open Calculator"
+
+    def test_project_name_extraction(self) -> None:
+        """
+        The project name should be extracted correctly.
+        """
+        plan = self.planner.create_plan(
+            "Create a Python project called Astra"
+        )
+
+        assert (
+            plan.steps[0].title
+            == 'Create project folder "Astra"'
+        )
+
+==================================================================
+FILE: tests/unit/test_reasoning.py
+==================================================================
+"""
+Unit tests for the ReasoningEngine.
+"""
+
+from __future__ import annotations
+
+from ai.reasoning import ReasoningEngine
+from ai.reasoning_type import ReasoningType
+
+
+class TestReasoningEngine:
+    """
+    Tests for the ReasoningEngine.
+    """
+
+    def setup_method(self) -> None:
+        """
+        Create a fresh ReasoningEngine before each test.
+        """
+        self.engine = ReasoningEngine()
+
+    def test_empty_input(self) -> None:
+        """
+        Empty input should default to chat.
+        """
+        result = self.engine.classify("")
+
+        assert result.reasoning == ReasoningType.CHAT
+        assert result.confidence == 1.0
+
+    def test_help_command(self) -> None:
+        """
+        Help should be classified as a command.
+        """
+        result = self.engine.classify("help")
+
+        assert result.reasoning == ReasoningType.COMMAND
+        assert result.confidence == 1.0
+
+    def test_command_alias(self) -> None:
+        """
+        Command aliases should be recognized.
+        """
+        result = self.engine.classify("calc 5+5")
+
+        assert result.reasoning == ReasoningType.COMMAND
+        assert result.confidence == 1.0
+
+    def test_planning_create(self) -> None:
+        """
+        Create requests should be classified as planning.
+        """
+        result = self.engine.classify(
+            "Create folder Demo"
+        )
+
+        assert result.reasoning == ReasoningType.PLANNING
+        assert result.confidence == 0.95
+
+    def test_planning_build(self) -> None:
+        """
+        Build requests should be classified as planning.
+        """
+        result = self.engine.classify(
+            "Build a website"
+        )
+
+        assert result.reasoning == ReasoningType.PLANNING
+        assert result.confidence == 0.95
+
+    def test_generate_request(self) -> None:
+        """
+        Generate requests should be planning.
+        """
+        result = self.engine.classify(
+            "Generate documentation"
+        )
+
+        assert result.reasoning == ReasoningType.PLANNING
+        assert result.confidence == 0.95
+
+    def test_make_request(self) -> None:
+        """
+        Make requests should be planning.
+        """
+        result = self.engine.classify(
+            "Make a desktop application"
+        )
+
+        assert result.reasoning == ReasoningType.PLANNING
+        assert result.confidence == 0.95
+
+    def test_chat(self) -> None:
+        """
+        Normal conversation should be classified as chat.
+        """
+        result = self.engine.classify(
+            "What is artificial intelligence?"
+        )
+
+        assert result.reasoning == ReasoningType.CHAT
+        assert result.confidence == 0.80
+
+    def test_whitespace(self) -> None:
+        """
+        Leading and trailing whitespace should be ignored.
+        """
+        result = self.engine.classify(
+            "   help   "
+        )
+
+        assert result.reasoning == ReasoningType.COMMAND
+        assert result.confidence == 1.0
+
+    def test_mixed_case(self) -> None:
+        """
+        Classification should be case-insensitive.
+        """
+        result = self.engine.classify(
+            "HeLp"
+        )
+
+        assert result.reasoning == ReasoningType.COMMAND
+        assert result.confidence == 1.0
+
+    def test_chat_confidence(self) -> None:
+        """
+        Chat requests should return the default confidence.
+        """
+        result = self.engine.classify(
+            "Tell me a joke."
+        )
+
+        assert result.reasoning == ReasoningType.CHAT
+        assert result.confidence == 0.80
+
+    def test_planning_confidence(self) -> None:
+        """
+        Planning requests should return planning confidence.
+        """
+        result = self.engine.classify(
+            "Create Python project"
+        )
+
+        assert result.reasoning == ReasoningType.PLANNING
+        assert result.confidence == 0.95
+
+    def test_command_confidence(self) -> None:
+        """
+        Commands should return maximum confidence.
+        """
+        result = self.engine.classify("history")
+
+        assert result.reasoning == ReasoningType.COMMAND
+        assert result.confidence == 1.0
+
+==================================================================
+FILE: tests/unit/test_router.py
+==================================================================
+"""
+Unit tests for the Router.
+"""
+
+from __future__ import annotations
+
+from ai.router import Router
+
+
+class TestRouter:
+    """
+    Tests for the Router.
+    """
+
+    def setup_method(self) -> None:
+        """
+        Create a fresh Router before each test.
+        """
+        self.router = Router()
+
+    def test_help_command(self) -> None:
+        """
+        Help command should return a successful response.
+        """
+        response = self.router.execute("help")
+
+        assert response.success is True
+        assert isinstance(response.message, str)
+
+    def test_version_command(self) -> None:
+        """
+        Version command should execute successfully.
+        """
+        response = self.router.execute("version")
+
+        assert response.success is True
+
+    def test_calculate_command(self) -> None:
+        """
+        Calculate command should execute successfully.
+        """
+        response = self.router.execute("calculate 5+5")
+
+        assert response.success is True
+        assert response.message == "10"
+
+    def test_history_command(self) -> None:
+        """
+        History command should execute successfully.
+        """
+        self.router.execute("help")
+
+        response = self.router.execute("history")
+
+        assert response.success is True
+        assert "Command History" in response.message
+
+    def test_chat_request(self) -> None:
+        """
+        Normal chat should be handled by the AI engine.
+        """
+        response = self.router.execute(
+            "Hello Nexus"
+        )
+
+        assert response.success is True
+        assert isinstance(response.message, str)
+
+    def test_planning_request(self) -> None:
+        """
+        Planning requests should currently be handled
+        without raising an exception.
+        """
+        response = self.router.execute(
+            "Create folder Demo"
+        )
+
+        assert response.success is True
+
+    def test_stream_command(self) -> None:
+        """
+        Streaming a command should return output.
+        """
+        chunks = list(
+            self.router.stream(
+                "version"
+            )
+        )
+
+        assert len(chunks) == 1
+
+    def test_stream_chat(self) -> None:
+        """
+        Streaming chat should produce output.
+        """
+        chunks = list(
+            self.router.stream(
+                "Hello Nexus"
+            )
+        )
+
+        assert len(chunks) > 0
+
+==================================================================
+FILE: tests/unit/voice_system/test_audio_manager.py
+==================================================================
+"""
+Unit tests for the AudioManager.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from voice.audio_manager import AudioManager
+from voice.exceptions import AudioError
+from voice.models import VoiceSettings
+
+
+def test_default_settings() -> None:
+    """AudioManager should initialize with default settings."""
+    manager = AudioManager()
+
+    settings = manager.settings
+
+    assert settings.sample_rate == 16000
+    assert settings.channels == 1
+    assert settings.chunk_size == 1024
+    assert settings.wake_word_enabled is True
+
+
+def test_custom_settings() -> None:
+    """AudioManager should accept valid custom settings."""
+    settings = VoiceSettings(
+        sample_rate=44100,
+        channels=2,
+        chunk_size=2048,
+    )
+
+    manager = AudioManager(settings)
+
+    assert manager.settings.sample_rate == 44100
+    assert manager.settings.channels == 2
+    assert manager.settings.chunk_size == 2048
+
+
+def test_update_settings() -> None:
+    """Updating settings should replace the current configuration."""
+    manager = AudioManager()
+
+    settings = VoiceSettings(
+        sample_rate=22050,
+        channels=1,
+        chunk_size=512,
+    )
+
+    manager.update_settings(settings)
+
+    assert manager.settings.sample_rate == 22050
+    assert manager.settings.chunk_size == 512
+
+
+def test_set_input_device() -> None:
+    """Input device should be stored correctly."""
+    manager = AudioManager()
+
+    manager.set_input_device("Microphone")
+
+    assert manager.get_input_device() == "Microphone"
+
+
+def test_set_output_device() -> None:
+    """Output device should be stored correctly."""
+    manager = AudioManager()
+
+    manager.set_output_device("Speaker")
+
+    assert manager.get_output_device() == "Speaker"
+
+
+@pytest.mark.parametrize(
+    "sample_rate",
+    [
+        0,
+        4000,
+        96000,
+    ],
+)
+def test_invalid_sample_rate(sample_rate: int) -> None:
+    """Invalid sample rates should raise AudioError."""
+    settings = VoiceSettings(sample_rate=sample_rate)
+
+    with pytest.raises(AudioError):
+        AudioManager(settings)
+
+
+@pytest.mark.parametrize(
+    "channels",
+    [
+        0,
+        3,
+        10,
+    ],
+)
+def test_invalid_channels(channels: int) -> None:
+    """Invalid channel counts should raise AudioError."""
+    settings = VoiceSettings(channels=channels)
+
+    with pytest.raises(AudioError):
+        AudioManager(settings)
+
+
+@pytest.mark.parametrize(
+    "chunk_size",
+    [
+        0,
+        64,
+        16384,
+    ],
+)
+def test_invalid_chunk_size(chunk_size: int) -> None:
+    """Invalid chunk sizes should raise AudioError."""
+    settings = VoiceSettings(chunk_size=chunk_size)
+
+    with pytest.raises(AudioError):
+        AudioManager(settings)
+
+
+def test_invalid_speech_timeout() -> None:
+    """Speech timeout must be positive."""
+    settings = VoiceSettings(
+        speech_timeout=0,
+    )
+
+    with pytest.raises(AudioError):
+        AudioManager(settings)
+
+
+def test_invalid_silence_timeout() -> None:
+    """Silence timeout must be positive."""
+    settings = VoiceSettings(
+        silence_timeout=-1,
+    )
+
+    with pytest.raises(AudioError):
+        AudioManager(settings)
+
+
+def test_reset() -> None:
+    """Reset should restore default settings."""
+    manager = AudioManager()
+
+    manager.set_input_device("Mic")
+    manager.set_output_device("Speaker")
+
+    manager.reset()
+
+    settings = manager.settings
+
+    assert settings.sample_rate == 16000
+    assert settings.channels == 1
+    assert settings.chunk_size == 1024
+    assert manager.get_input_device() is None
+    assert manager.get_output_device() is None
+
+
+def test_supports_streaming() -> None:
+    """Streaming is not implemented yet."""
+    manager = AudioManager()
+
+    assert manager.supports_streaming() is False
+
+==================================================================
+FILE: tests/unit/voice_system/test_microphone_manager.py
+==================================================================
+"""
+Unit tests for the MicrophoneManager.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from voice.audio_manager import AudioManager
+from voice.exceptions import AudioError
+from voice.interfaces import AudioInput
+from voice.microphone_manager import MicrophoneManager
+from voice.models import AudioChunk
+
+
+class DummyAudioInput(AudioInput):
+    """Simple mock AudioInput implementation."""
+
+    def __init__(self) -> None:
+        self.started = False
+        self.stopped = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def stop(self) -> None:
+        self.stopped = True
+
+    def read(self) -> AudioChunk:
+        return AudioChunk(
+            data=b"audio",
+            sample_rate=16000,
+            channels=1,
+            sample_width=2,
+        )
+
+
+def test_initial_state() -> None:
+    """MicrophoneManager should start idle."""
+    manager = MicrophoneManager(AudioManager())
+
+    assert manager.is_recording is False
+    assert manager.audio_input is None
+
+
+def test_set_audio_input() -> None:
+    """Backend should be stored correctly."""
+    manager = MicrophoneManager(AudioManager())
+
+    backend = DummyAudioInput()
+
+    manager.set_audio_input(backend)
+
+    assert manager.audio_input is backend
+
+
+def test_start_recording() -> None:
+    """Recording should start successfully."""
+    backend = DummyAudioInput()
+
+    manager = MicrophoneManager(AudioManager(), backend)
+
+    manager.start()
+
+    assert manager.is_recording is True
+    assert backend.started is True
+
+
+def test_stop_recording() -> None:
+    """Recording should stop successfully."""
+    backend = DummyAudioInput()
+
+    manager = MicrophoneManager(AudioManager(), backend)
+
+    manager.start()
+    manager.stop()
+
+    assert manager.is_recording is False
+    assert backend.stopped is True
+
+
+def test_read_chunk() -> None:
+    """Audio chunk should be returned."""
+    backend = DummyAudioInput()
+
+    manager = MicrophoneManager(AudioManager(), backend)
+
+    manager.start()
+
+    chunk = manager.read_chunk()
+
+    assert isinstance(chunk, AudioChunk)
+    assert chunk.data == b"audio"
+    assert chunk.sample_rate == 16000
+
+
+def test_start_without_backend() -> None:
+    """Starting without backend should fail."""
+    manager = MicrophoneManager(AudioManager())
+
+    with pytest.raises(AudioError):
+        manager.start()
+
+
+def test_read_without_backend() -> None:
+    """Reading without backend should fail."""
+    manager = MicrophoneManager(AudioManager())
+
+    with pytest.raises(AudioError):
+        manager.read_chunk()
+
+
+def test_read_without_start() -> None:
+    """Reading before start should fail."""
+    backend = DummyAudioInput()
+
+    manager = MicrophoneManager(AudioManager(), backend)
+
+    with pytest.raises(AudioError):
+        manager.read_chunk()
+
+
+def test_double_start() -> None:
+    """Calling start twice should be safe."""
+    backend = DummyAudioInput()
+
+    manager = MicrophoneManager(AudioManager(), backend)
+
+    manager.start()
+    manager.start()
+
+    assert manager.is_recording is True
+
+
+def test_double_stop() -> None:
+    """Calling stop twice should be safe."""
+    backend = DummyAudioInput()
+
+    manager = MicrophoneManager(AudioManager(), backend)
+
+    manager.start()
+
+    manager.stop()
+    manager.stop()
+
+    assert manager.is_recording is False
+
+
+def test_reset() -> None:
+    """Reset should stop recording and clear backend."""
+    backend = DummyAudioInput()
+
+    manager = MicrophoneManager(AudioManager(), backend)
+
+    manager.start()
+
+    manager.reset()
+
+    assert manager.is_recording is False
+    assert manager.audio_input is None
+
+==================================================================
+FILE: tests/unit/voice_system/test_mock_audio_input.py
+==================================================================
+"""
+Unit tests for MockAudioInput.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from voice.backends.mock_audio_input import MockAudioInput
+from voice.models import AudioChunk
+
+
+def test_initial_state() -> None:
+    """MockAudioInput should initialize correctly."""
+    backend = MockAudioInput()
+
+    assert backend.is_running is False
+    assert backend.chunks_read == 0
+
+
+def test_start() -> None:
+    """Backend should start successfully."""
+    backend = MockAudioInput()
+
+    backend.start()
+
+    assert backend.is_running is True
+
+
+def test_stop() -> None:
+    """Backend should stop successfully."""
+    backend = MockAudioInput()
+
+    backend.start()
+    backend.stop()
+
+    assert backend.is_running is False
+
+
+def test_read_chunk() -> None:
+    """Reading should return a valid AudioChunk."""
+    backend = MockAudioInput()
+
+    backend.start()
+
+    chunk = backend.read()
+
+    assert isinstance(chunk, AudioChunk)
+    assert chunk.sample_rate == 16000
+    assert chunk.channels == 1
+    assert chunk.sample_width == 2
+    assert len(chunk.data) == 1024
+
+
+def test_chunks_read_counter() -> None:
+    """Chunk counter should increase after every read."""
+    backend = MockAudioInput()
+
+    backend.start()
+
+    backend.read()
+    backend.read()
+    backend.read()
+
+    assert backend.chunks_read == 3
+
+
+def test_read_without_start() -> None:
+    """Reading before start should fail."""
+    backend = MockAudioInput()
+
+    with pytest.raises(RuntimeError):
+        backend.read()
+
+
+def test_double_start() -> None:
+    """Calling start twice should be safe."""
+    backend = MockAudioInput()
+
+    backend.start()
+    backend.start()
+
+    assert backend.is_running is True
+
+
+def test_double_stop() -> None:
+    """Calling stop twice should be safe."""
+    backend = MockAudioInput()
+
+    backend.start()
+
+    backend.stop()
+    backend.stop()
+
+    assert backend.is_running is False
+
+
+def test_reset() -> None:
+    """Reset should restore the initial state."""
+    backend = MockAudioInput()
+
+    backend.start()
+
+    backend.read()
+    backend.read()
+
+    backend.reset()
+
+    assert backend.is_running is False
+    assert backend.chunks_read == 0
+
+
+def test_multiple_cycles() -> None:
+    """Multiple start/stop cycles should work."""
+    backend = MockAudioInput()
+
+    for _ in range(5):
+        backend.start()
+
+        chunk = backend.read()
+
+        assert isinstance(chunk, AudioChunk)
+
+        backend.stop()
+
+    assert backend.chunks_read == 5
+
+==================================================================
+FILE: tests/unit/voice_system/test_openwakeword_detector.py
+==================================================================
+"""
+Unit tests for the OpenWakeWordDetector backend.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from voice.backends.openwakeword_detector import (
+    OpenWakeWordDetector,
+)
+from voice.exceptions import WakeWordError
+
+
+@patch(
+    "voice.backends.openwakeword_detector.Path.exists",
+    return_value=True,
+)
+def test_backend_initializes(mock_exists) -> None:
+    """Backend should initialize correctly."""
+
+    backend = OpenWakeWordDetector("model.tflite")
+
+    assert backend.threshold == 0.5
+    assert backend.is_running is False
+
+
+@patch(
+    "voice.backends.openwakeword_detector.Path.exists",
+    return_value=False,
+)
+def test_missing_model(mock_exists) -> None:
+    """Missing wake-word model should raise."""
+
+    with pytest.raises(WakeWordError):
+        OpenWakeWordDetector("missing.tflite")
+
+
+@patch(
+    "voice.backends.openwakeword_detector.Path.exists",
+    return_value=True,
+)
+@patch("openwakeword.model.Model")
+def test_start(
+    mock_model,
+    mock_exists,
+) -> None:
+    """Detector should start successfully."""
+
+    backend = OpenWakeWordDetector("model.tflite")
+
+    backend.start()
+
+    assert backend.is_running is True
+    mock_model.assert_called_once()
+
+
+@patch(
+    "voice.backends.openwakeword_detector.Path.exists",
+    return_value=True,
+)
+@patch("openwakeword.model.Model")
+def test_stop(
+    mock_model,
+    mock_exists,
+) -> None:
+    """Detector should stop successfully."""
+
+    backend = OpenWakeWordDetector("model.tflite")
+
+    backend.start()
+    backend.stop()
+
+    assert backend.is_running is False
+
+
+@patch(
+    "voice.backends.openwakeword_detector.Path.exists",
+    return_value=True,
+)
+@patch("openwakeword.model.Model")
+def test_detected_true(
+    mock_model,
+    mock_exists,
+) -> None:
+    """Prediction above threshold should detect wake word."""
+
+    model = MagicMock()
+    model.predict.return_value = {
+        "nexus": 0.91,
+    }
+
+    mock_model.return_value = model
+
+    backend = OpenWakeWordDetector("model.tflite")
+
+    backend.start()
+
+    detected = backend.process([0] * 1600)
+
+    assert detected is True
+    assert backend.detected() is True
+
+
+@patch(
+    "voice.backends.openwakeword_detector.Path.exists",
+    return_value=True,
+)
+@patch("openwakeword.model.Model")
+def test_detected_false(
+    mock_model,
+    mock_exists,
+) -> None:
+    """Prediction below threshold should not detect."""
+
+    model = MagicMock()
+    model.predict.return_value = {
+        "nexus": 0.12,
+    }
+
+    mock_model.return_value = model
+
+    backend = OpenWakeWordDetector("model.tflite")
+
+    backend.start()
+
+    detected = backend.process([0] * 1600)
+
+    assert detected is False
+    assert backend.detected() is False
+
+
+@patch(
+    "voice.backends.openwakeword_detector.Path.exists",
+    return_value=True,
+)
+def test_process_without_start(
+    mock_exists,
+) -> None:
+    """Calling process before start should raise."""
+
+    backend = OpenWakeWordDetector("model.tflite")
+
+    with pytest.raises(WakeWordError):
+        backend.process([0] * 1600)
+
+
+@patch(
+    "voice.backends.openwakeword_detector.Path.exists",
+    return_value=True,
+)
+@patch("openwakeword.model.Model")
+def test_reset(
+    mock_model,
+    mock_exists,
+) -> None:
+    """Reset should clear detection state."""
+
+    model = MagicMock()
+    model.predict.return_value = {
+        "nexus": 0.95,
+    }
+
+    mock_model.return_value = model
+
+    backend = OpenWakeWordDetector("model.tflite")
+
+    backend.start()
+
+    backend.process([0] * 1600)
+
+    assert backend.detected() is True
+
+    backend.reset()
+
+    assert backend.detected() is False
+
+==================================================================
+FILE: tests/unit/voice_system/test_piper_tts.py
+==================================================================
+"""
+Unit tests for the PiperTextToSpeech backend.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import patch
+
+import subprocess
+import pytest
+
+from voice.backends.piper_tts import PiperTextToSpeech
+from voice.exceptions import TextToSpeechError
+
+
+@patch("voice.backends.piper_tts.Path.exists", return_value=True)
+def test_backend_initializes(mock_exists) -> None:
+    """Backend should initialize correctly."""
+
+    backend = PiperTextToSpeech(
+        executable="piper",
+        model_path="voice.onnx",
+    )
+
+    assert backend.executable == Path("piper")
+    assert backend.model_path == Path("voice.onnx")
+    assert backend.output_file == Path("piper_output.wav")
+
+
+@patch("voice.backends.piper_tts.Path.exists", return_value=False)
+def test_missing_executable(mock_exists) -> None:
+    """Missing executable should raise."""
+
+    with pytest.raises(TextToSpeechError):
+        PiperTextToSpeech(
+            executable="missing",
+            model_path="voice.onnx",
+        )
+
+
+@patch("voice.backends.piper_tts.Path.exists")
+def test_missing_model(mock_exists) -> None:
+    """Missing model should raise."""
+
+    mock_exists.side_effect = [True, False]
+
+    with pytest.raises(TextToSpeechError):
+        PiperTextToSpeech(
+            executable="piper",
+            model_path="missing.onnx",
+        )
+
+
+@patch("voice.backends.piper_tts.subprocess.run")
+@patch("voice.backends.piper_tts.Path.exists", return_value=True)
+def test_speak_success(
+    mock_exists,
+    mock_run,
+) -> None:
+    """Speech synthesis should invoke Piper."""
+
+    backend = PiperTextToSpeech(
+        executable="piper",
+        model_path="voice.onnx",
+    )
+
+    backend.speak("Hello Nexus")
+
+    mock_run.assert_called_once()
+
+
+@patch("voice.backends.piper_tts.Path.exists", return_value=True)
+def test_empty_text(mock_exists) -> None:
+    """Empty text should raise."""
+
+    backend = PiperTextToSpeech(
+        executable="piper",
+        model_path="voice.onnx",
+    )
+
+    with pytest.raises(TextToSpeechError):
+        backend.speak("")
+
+
+@patch("voice.backends.piper_tts.Path.exists", return_value=True)
+def test_invalid_text(mock_exists) -> None:
+    """Non-string input should raise."""
+
+    backend = PiperTextToSpeech(
+        executable="piper",
+        model_path="voice.onnx",
+    )
+
+    with pytest.raises(TextToSpeechError):
+        backend.speak(None)  # type: ignore[arg-type]
+
+
+@patch("voice.backends.piper_tts.subprocess.run")
+@patch("voice.backends.piper_tts.Path.exists", return_value=True)
+def test_piper_failure(
+    mock_exists,
+    mock_run,
+) -> None:
+    """Piper errors should be wrapped."""
+
+    mock_run.side_effect = subprocess.CalledProcessError(
+        returncode=1,
+        cmd="piper",
+        stderr=b"failure",
+    )
+
+    backend = PiperTextToSpeech(
+        executable="piper",
+        model_path="voice.onnx",
+    )
+
+    with pytest.raises(TextToSpeechError):
+        backend.speak("Hello")
+
+
+@patch("voice.backends.piper_tts.subprocess.run")
+@patch("voice.backends.piper_tts.Path.exists", return_value=True)
+def test_missing_binary(
+    mock_exists,
+    mock_run,
+) -> None:
+    """Missing binary should raise."""
+
+    mock_run.side_effect = FileNotFoundError()
+
+    backend = PiperTextToSpeech(
+        executable="piper",
+        model_path="voice.onnx",
+    )
+
+    with pytest.raises(TextToSpeechError):
+        backend.speak("Hello")
+
+==================================================================
+FILE: tests/unit/voice_system/test_sounddevice_input.py
+==================================================================
+
+==================================================================
+FILE: tests/unit/voice_system/test_speech_to_text.py
+==================================================================
+"""
+Unit tests for the SpeechToTextManager.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from voice.exceptions import SpeechToTextError
+from voice.interfaces import SpeechToText
+from voice.models import AudioChunk
+from voice.speech_to_text import SpeechToTextManager
+
+
+class DummySpeechToText(SpeechToText):
+    """Simple Speech-to-Text backend used for testing."""
+
+    def transcribe(self, audio: AudioChunk) -> str:
+        return "Hello Nexus"
+
+
+class InvalidSpeechToText(SpeechToText):
+    """Returns an invalid result."""
+
+    def transcribe(self, audio: AudioChunk):
+        return 12345
+
+
+def create_audio_chunk() -> AudioChunk:
+    """Create a dummy audio chunk."""
+    return AudioChunk(
+        data=b"audio",
+        sample_rate=16000,
+        channels=1,
+        sample_width=2,
+    )
+
+
+def test_initial_state() -> None:
+    """Manager should initialize without a backend."""
+    manager = SpeechToTextManager()
+
+    assert manager.backend is None
+    assert manager.has_backend() is False
+
+
+def test_set_backend() -> None:
+    """Backend should be registered."""
+    backend = DummySpeechToText()
+
+    manager = SpeechToTextManager()
+
+    manager.set_backend(backend)
+
+    assert manager.backend is backend
+    assert manager.has_backend() is True
+
+
+def test_transcribe() -> None:
+    """Audio should be transcribed."""
+    backend = DummySpeechToText()
+
+    manager = SpeechToTextManager(backend)
+
+    text = manager.transcribe(create_audio_chunk())
+
+    assert text == "Hello Nexus"
+
+
+def test_transcribe_strips_whitespace() -> None:
+    """Whitespace should be removed."""
+
+    class Backend(SpeechToText):
+        def transcribe(self, audio: AudioChunk) -> str:
+            return "   Hello Nexus   "
+
+    manager = SpeechToTextManager(Backend())
+
+    assert manager.transcribe(create_audio_chunk()) == "Hello Nexus"
+
+
+def test_transcribe_without_backend() -> None:
+    """Missing backend should raise."""
+    manager = SpeechToTextManager()
+
+    with pytest.raises(SpeechToTextError):
+        manager.transcribe(create_audio_chunk())
+
+
+def test_invalid_backend_result() -> None:
+    """Backend must return a string."""
+    manager = SpeechToTextManager(
+        InvalidSpeechToText()
+    )
+
+    with pytest.raises(SpeechToTextError):
+        manager.transcribe(create_audio_chunk())
+
+
+def test_reset() -> None:
+    """Reset should remove backend."""
+    backend = DummySpeechToText()
+
+    manager = SpeechToTextManager(backend)
+
+    manager.reset()
+
+    assert manager.backend is None
+    assert manager.has_backend() is False
+
+==================================================================
+FILE: tests/unit/voice_system/test_text_to_speech.py
+==================================================================
+"""
+Unit tests for the TextToSpeechManager.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from voice.exceptions import TextToSpeechError
+from voice.interfaces import TextToSpeech
+from voice.text_to_speech import TextToSpeechManager
+
+
+class DummyTextToSpeech(TextToSpeech):
+    """Simple Text-to-Speech backend used for testing."""
+
+    def __init__(self) -> None:
+        self.last_text: str | None = None
+
+    def speak(self, text: str) -> None:
+        self.last_text = text
+
+
+def test_initial_state() -> None:
+    """Manager should initialize without a backend."""
+    manager = TextToSpeechManager()
+
+    assert manager.backend is None
+    assert manager.has_backend() is False
+
+
+def test_set_backend() -> None:
+    """Backend should be registered correctly."""
+    backend = DummyTextToSpeech()
+
+    manager = TextToSpeechManager()
+
+    manager.set_backend(backend)
+
+    assert manager.backend is backend
+    assert manager.has_backend() is True
+
+
+def test_speak() -> None:
+    """Text should be passed to the backend."""
+    backend = DummyTextToSpeech()
+
+    manager = TextToSpeechManager(backend)
+
+    manager.speak("Hello Nexus")
+
+    assert backend.last_text == "Hello Nexus"
+
+
+def test_speak_strips_whitespace() -> None:
+    """Whitespace should be removed before speaking."""
+    backend = DummyTextToSpeech()
+
+    manager = TextToSpeechManager(backend)
+
+    manager.speak("   Hello Nexus   ")
+
+    assert backend.last_text == "Hello Nexus"
+
+
+def test_speak_without_backend() -> None:
+    """Speaking without a backend should fail."""
+    manager = TextToSpeechManager()
+
+    with pytest.raises(TextToSpeechError):
+        manager.speak("Hello")
+
+
+def test_empty_text() -> None:
+    """Empty text should not be accepted."""
+    backend = DummyTextToSpeech()
+
+    manager = TextToSpeechManager(backend)
+
+    with pytest.raises(TextToSpeechError):
+        manager.speak("")
+
+
+def test_whitespace_only_text() -> None:
+    """Whitespace-only text should not be accepted."""
+    backend = DummyTextToSpeech()
+
+    manager = TextToSpeechManager(backend)
+
+    with pytest.raises(TextToSpeechError):
+        manager.speak("     ")
+
+
+def test_invalid_input_type() -> None:
+    """Input must be a string."""
+    backend = DummyTextToSpeech()
+
+    manager = TextToSpeechManager(backend)
+
+    with pytest.raises(TextToSpeechError):
+        manager.speak(123)  # type: ignore[arg-type]
+
+
+def test_stop() -> None:
+    """
+    stop() is currently a placeholder.
+
+    It should execute without raising an exception.
+    """
+    backend = DummyTextToSpeech()
+
+    manager = TextToSpeechManager(backend)
+
+    manager.stop()
+
+
+def test_reset() -> None:
+    """Reset should remove the backend."""
+    backend = DummyTextToSpeech()
+
+    manager = TextToSpeechManager(backend)
+
+    manager.reset()
+
+    assert manager.backend is None
+    assert manager.has_backend() is False
+
+==================================================================
+FILE: tests/unit/voice_system/test_voice_assistant.py
+==================================================================
+"""
+Unit tests for the VoiceAssistant adapter.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+
+from voice.assistant import (
+    AIEngineVoiceAssistant,
+    VoiceAssistant,
+)
+
+
+class DummyAIEngine:
+    """
+    Simple AIEngine mock.
+    """
+
+    def chat(self, text: str) -> str:
+        return f"Response: {text}"
+
+    def stream_chat(self, text: str) -> Iterator[str]:
+        yield "Response:"
+        yield " "
+        yield text
+
+
+class DummyVoiceAssistant(VoiceAssistant):
+    """
+    Concrete VoiceAssistant used for testing.
+    """
+
+    def process_text(self, text: str) -> str:
+        return f"Processed: {text}"
+
+
+def test_voice_assistant_process_text() -> None:
+    """
+    VoiceAssistant should process text.
+    """
+    assistant = DummyVoiceAssistant()
+
+    assert assistant.process_text("Hello") == "Processed: Hello"
+
+
+def test_voice_assistant_stream_text() -> None:
+    """
+    Default stream_text() should yield process_text().
+    """
+    assistant = DummyVoiceAssistant()
+
+    chunks = list(
+        assistant.stream_text("Hello")
+    )
+
+    assert chunks == [
+        "Processed: Hello",
+    ]
+
+
+def test_ai_engine_voice_assistant_process_text() -> None:
+    """
+    AIEngineVoiceAssistant should delegate to AIEngine.chat().
+    """
+    engine = DummyAIEngine()
+
+    assistant = AIEngineVoiceAssistant(engine)
+
+    response = assistant.process_text(
+        "Hello Nexus"
+    )
+
+    assert response == "Response: Hello Nexus"
+
+
+def test_ai_engine_voice_assistant_stream_text() -> None:
+    """
+    AIEngineVoiceAssistant should delegate
+    to AIEngine.stream_chat().
+    """
+    engine = DummyAIEngine()
+
+    assistant = AIEngineVoiceAssistant(engine)
+
+    chunks = list(
+        assistant.stream_text(
+            "Hello Nexus"
+        )
+    )
+
+    assert chunks == [
+        "Response:",
+        " ",
+        "Hello Nexus",
+    ]
+
+
+def test_engine_property() -> None:
+    """
+    engine property should return
+    the wrapped AIEngine.
+    """
+    engine = DummyAIEngine()
+
+    assistant = AIEngineVoiceAssistant(
+        engine
+    )
+
+    assert assistant.engine is engine
+
+==================================================================
+FILE: tests/unit/voice_system/test_voice_engine.py
+==================================================================
+"""
+Unit tests for the VoiceEngine.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from voice.assistant import VoiceAssistant
+from voice.audio_manager import AudioManager
+from voice.interfaces import AudioInput, SpeechToText, TextToSpeech, WakeWordDetector
+from voice.microphone_manager import MicrophoneManager
+from voice.models import AudioChunk, VoiceState
+from voice.speech_to_text import SpeechToTextManager
+from voice.text_to_speech import TextToSpeechManager
+from voice.voice_engine import VoiceEngine
+from voice.wake_word import WakeWordManager
+
+
+class DummyAudioInput(AudioInput):
+    """Mock microphone backend."""
+
+    def start(self) -> None:
+        pass
+
+    def stop(self) -> None:
+        pass
+
+    def read(self) -> AudioChunk:
+        return AudioChunk(
+            data=b"audio",
+            sample_rate=16000,
+            channels=1,
+            sample_width=2,
+        )
+
+
+class DummySpeechToText(SpeechToText):
+    """Mock STT backend."""
+
+    def transcribe(self, audio: AudioChunk) -> str:
+        return "Hello Nexus"
+
+
+class DummyTextToSpeech(TextToSpeech):
+    """Mock TTS backend."""
+
+    def __init__(self) -> None:
+        self.last_text: str | None = None
+
+    def speak(self, text: str) -> None:
+        self.last_text = text
+
+
+class DummyWakeWordDetector(WakeWordDetector):
+    """Mock wake-word detector."""
+
+    def __init__(self) -> None:
+        self.detected_value = True
+
+    def start(self) -> None:
+        pass
+
+    def stop(self) -> None:
+        pass
+
+    def detected(self) -> bool:
+        return self.detected_value
+
+
+class DummyAssistant(VoiceAssistant):
+    """Mock AI assistant."""
+
+    def process_text(self, text: str) -> str:
+        return f"AI: {text}"
+
+
+def create_engine() -> tuple[VoiceEngine, DummyTextToSpeech]:
+    """
+    Create a fully configured VoiceEngine.
+    """
+    audio_manager = AudioManager()
+
+    microphone = MicrophoneManager(
+        audio_manager,
+        DummyAudioInput(),
+    )
+
+    stt = SpeechToTextManager(
+        DummySpeechToText(),
+    )
+
+    tts_backend = DummyTextToSpeech()
+
+    tts = TextToSpeechManager(
+        tts_backend,
+    )
+
+    wake = WakeWordManager(
+        DummyWakeWordDetector(),
+    )
+
+    assistant = DummyAssistant()
+
+    engine = VoiceEngine(
+        audio_manager,
+        microphone,
+        stt,
+        tts,
+        wake,
+        assistant,
+    )
+
+    return engine, tts_backend
+
+
+def test_initial_state() -> None:
+    """Engine should start idle."""
+    engine, _ = create_engine()
+
+    assert engine.state is VoiceState.IDLE
+
+
+def test_start() -> None:
+    """Starting should leave the engine idle."""
+    engine, _ = create_engine()
+
+    engine.start()
+
+    assert engine.state is VoiceState.IDLE
+
+
+def test_stop() -> None:
+    """Stopping should leave the engine idle."""
+    engine, _ = create_engine()
+
+    engine.start()
+    engine.stop()
+
+    assert engine.state is VoiceState.IDLE
+
+
+def test_listen_once() -> None:
+    """Audio should be transcribed."""
+    engine, _ = create_engine()
+
+    text = engine.listen_once()
+
+    assert text == "Hello Nexus"
+
+
+def test_speak() -> None:
+    """Speech should be delegated to the TTS backend."""
+    engine, backend = create_engine()
+
+    engine.speak("Testing")
+
+    assert backend.last_text == "Testing"
+
+
+def test_process_once() -> None:
+    """Wake-word detection should trigger transcription."""
+    engine, _ = create_engine()
+
+    engine.start()
+
+    assert engine.process_once() == "Hello Nexus"
+
+
+def test_chat_once() -> None:
+    """Complete voice interaction should succeed."""
+    engine, backend = create_engine()
+
+    engine.start()
+
+    response = engine.chat_once()
+
+    assert response == "AI: Hello Nexus"
+    assert backend.last_text == "AI: Hello Nexus"
+
+
+def test_reset() -> None:
+    """Reset should restore idle state."""
+    engine, _ = create_engine()
+
+    engine.start()
+    engine.reset()
+
+    assert engine.state is VoiceState.IDLE
+
+
+def test_multiple_interactions() -> None:
+    """Engine should support repeated interactions."""
+    engine, _ = create_engine()
+
+    engine.start()
+
+    assert engine.chat_once() == "AI: Hello Nexus"
+    assert engine.chat_once() == "AI: Hello Nexus"
+
+
+def test_no_wake_word() -> None:
+    """No response should be generated if wake word is absent."""
+
+    class NoWakeWord(WakeWordDetector):
+        def start(self) -> None:
+            pass
+
+        def stop(self) -> None:
+            pass
+
+        def detected(self) -> bool:
+            return False
+
+    audio_manager = AudioManager()
+
+    microphone = MicrophoneManager(
+        audio_manager,
+        DummyAudioInput(),
+    )
+
+    stt = SpeechToTextManager(
+        DummySpeechToText(),
+    )
+
+    tts = TextToSpeechManager(
+        DummyTextToSpeech(),
+    )
+
+    wake = WakeWordManager(
+        NoWakeWord(),
+    )
+
+    assistant = DummyAssistant()
+
+    engine = VoiceEngine(
+        audio_manager,
+        microphone,
+        stt,
+        tts,
+        wake,
+        assistant,
+    )
+
+    engine.start()
+
+    assert engine.chat_once() is None
+
+==================================================================
+FILE: tests/unit/voice_system/test_vosk_stt.py
+==================================================================
+"""
+Unit tests for the VoskSpeechToText backend.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from voice.exceptions import SpeechToTextError
+from voice.models import AudioChunk
+from voice.backends.vosk_stt import VoskSpeechToText
+
+
+def create_audio_chunk() -> AudioChunk:
+    """Create dummy audio."""
+    return AudioChunk(
+        data=b"audio",
+        sample_rate=16000,
+        channels=1,
+        sample_width=2,
+    )
+
+
+@patch("voice.backends.vosk_stt.Model")
+@patch("voice.backends.vosk_stt.KaldiRecognizer")
+@patch("voice.backends.vosk_stt.Path.exists", return_value=True)
+def test_backend_initializes(
+    mock_exists,
+    mock_recognizer,
+    mock_model,
+) -> None:
+    """Backend should initialize correctly."""
+
+    backend = VoskSpeechToText("model")
+
+    assert backend.sample_rate == 16000
+    assert backend.model_path == Path("model")
+
+    mock_model.assert_called_once()
+    mock_recognizer.assert_called_once()
+
+
+@patch("voice.backends.vosk_stt.Path.exists", return_value=False)
+def test_missing_model(mock_exists) -> None:
+    """Missing model should raise."""
+
+    with pytest.raises(SpeechToTextError):
+        VoskSpeechToText("missing-model")
+
+
+@patch("voice.backends.vosk_stt.Model")
+@patch("voice.backends.vosk_stt.KaldiRecognizer")
+@patch("voice.backends.vosk_stt.Path.exists", return_value=True)
+def test_transcribe(
+    mock_exists,
+    mock_recognizer,
+    mock_model,
+) -> None:
+    """Audio should be transcribed."""
+
+    recognizer = MagicMock()
+
+    recognizer.AcceptWaveform.return_value = True
+    recognizer.Result.return_value = (
+        '{"text":"hello nexus"}'
+    )
+
+    mock_recognizer.return_value = recognizer
+
+    backend = VoskSpeechToText("model")
+
+    text = backend.transcribe(
+        create_audio_chunk()
+    )
+
+    assert text == "hello nexus"
+
+
+@patch("voice.backends.vosk_stt.Model")
+@patch("voice.backends.vosk_stt.KaldiRecognizer")
+@patch("voice.backends.vosk_stt.Path.exists", return_value=True)
+def test_invalid_sample_rate(
+    mock_exists,
+    mock_recognizer,
+    mock_model,
+) -> None:
+    """Wrong sample rate should raise."""
+
+    backend = VoskSpeechToText("model")
+
+    chunk = AudioChunk(
+        data=b"audio",
+        sample_rate=8000,
+        channels=1,
+        sample_width=2,
+    )
+
+    with pytest.raises(SpeechToTextError):
+        backend.transcribe(chunk)
+
+
+@patch("voice.backends.vosk_stt.Model")
+@patch("voice.backends.vosk_stt.KaldiRecognizer")
+@patch("voice.backends.vosk_stt.Path.exists", return_value=True)
+def test_reset(
+    mock_exists,
+    mock_recognizer,
+    mock_model,
+) -> None:
+    """Reset should recreate recognizer."""
+
+    backend = VoskSpeechToText("model")
+
+    backend.reset()
+
+    assert mock_recognizer.call_count == 2
+
+==================================================================
+FILE: tests/unit/voice_system/test_wake_word.py
+==================================================================
+"""
+Unit tests for the WakeWordManager.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from voice.exceptions import WakeWordError
+from voice.interfaces import WakeWordDetector
+from voice.wake_word import WakeWordManager
+
+
+class DummyWakeWordDetector(WakeWordDetector):
+    """Simple WakeWord detector used for testing."""
+
+    def __init__(self) -> None:
+        self.started = False
+        self.stopped = False
+        self.detected_value = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def stop(self) -> None:
+        self.stopped = True
+
+    def detected(self) -> bool:
+        return self.detected_value
+
+
+def test_initial_state() -> None:
+    """Manager should initialize correctly."""
+    manager = WakeWordManager()
+
+    assert manager.backend is None
+    assert manager.is_running is False
+    assert manager.has_backend() is False
+
+
+def test_set_backend() -> None:
+    """Backend should be registered."""
+    backend = DummyWakeWordDetector()
+
+    manager = WakeWordManager()
+
+    manager.set_backend(backend)
+
+    assert manager.backend is backend
+    assert manager.has_backend() is True
+
+
+def test_start() -> None:
+    """Wake-word detection should start."""
+    backend = DummyWakeWordDetector()
+
+    manager = WakeWordManager(backend)
+
+    manager.start()
+
+    assert manager.is_running is True
+    assert backend.started is True
+
+
+def test_stop() -> None:
+    """Wake-word detection should stop."""
+    backend = DummyWakeWordDetector()
+
+    manager = WakeWordManager(backend)
+
+    manager.start()
+    manager.stop()
+
+    assert manager.is_running is False
+    assert backend.stopped is True
+
+
+def test_detect_true() -> None:
+    """Detection should return True."""
+    backend = DummyWakeWordDetector()
+    backend.detected_value = True
+
+    manager = WakeWordManager(backend)
+
+    manager.start()
+
+    assert manager.detect() is True
+
+
+def test_detect_false() -> None:
+    """Detection should return False."""
+    backend = DummyWakeWordDetector()
+
+    manager = WakeWordManager(backend)
+
+    manager.start()
+
+    assert manager.detect() is False
+
+
+def test_start_without_backend() -> None:
+    """Starting without backend should fail."""
+    manager = WakeWordManager()
+
+    with pytest.raises(WakeWordError):
+        manager.start()
+
+
+def test_detect_without_backend() -> None:
+    """Detection without backend should fail."""
+    manager = WakeWordManager()
+
+    with pytest.raises(WakeWordError):
+        manager.detect()
+
+
+def test_detect_when_not_running() -> None:
+    """Detection before start should fail."""
+    backend = DummyWakeWordDetector()
+
+    manager = WakeWordManager(backend)
+
+    with pytest.raises(WakeWordError):
+        manager.detect()
+
+
+def test_double_start() -> None:
+    """Calling start twice should be safe."""
+    backend = DummyWakeWordDetector()
+
+    manager = WakeWordManager(backend)
+
+    manager.start()
+    manager.start()
+
+    assert manager.is_running is True
+
+
+def test_double_stop() -> None:
+    """Calling stop twice should be safe."""
+    backend = DummyWakeWordDetector()
+
+    manager = WakeWordManager(backend)
+
+    manager.start()
+
+    manager.stop()
+    manager.stop()
+
+    assert manager.is_running is False
+
+
+def test_reset() -> None:
+    """Reset should stop detection and remove backend."""
+    backend = DummyWakeWordDetector()
+
+    manager = WakeWordManager(backend)
+
+    manager.start()
+
+    manager.reset()
+
+    assert manager.backend is None
+    assert manager.is_running is False
+    assert manager.has_backend() is False
+
+==================================================================
+FILE: voice/__init__.py
+==================================================================
+"""
+Nexus AI Voice System.
+
+Provides the public API for the voice subsystem.
+"""
+
+from .assistant import AIEngineVoiceAssistant, VoiceAssistant
+from .exceptions import (
+    AudioError,
+    SpeechToTextError,
+    TextToSpeechError,
+    VoiceError,
+    WakeWordError,
+)
+from .models import (
+    AudioChunk,
+    VoiceSettings,
+    VoiceState,
+)
+
+__all__ = [
+    "AIEngineVoiceAssistant",
+    "VoiceAssistant",
+    "VoiceError",
+    "AudioError",
+    "SpeechToTextError",
+    "TextToSpeechError",
+    "WakeWordError",
+    "AudioChunk",
+    "VoiceSettings",
+    "VoiceState",
+]
+
+==================================================================
+FILE: voice/assistant.py
+==================================================================
+"""
+Voice assistant adapter.
+
+This module connects the Voice subsystem to the existing AI Engine
+while keeping VoiceEngine independent of the concrete AI implementation.
+"""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from collections.abc import Iterator
+from typing import Protocol, runtime_checkable
+
+
+@runtime_checkable
+class AIEngineProtocol(Protocol):
+    """
+    Protocol describing the functionality required by
+    AIEngineVoiceAssistant.
+    """
+
+    def chat(self, text: str) -> str:
+        ...
+
+    def stream_chat(self, text: str) -> Iterator[str]:
+        ...
+
+
+class VoiceAssistant(ABC):
+    """
+    Abstract interface used by VoiceEngine.
+    """
+
+    @abstractmethod
+    def process_text(self, text: str) -> str:
+        """
+        Process user speech and return the assistant response.
+        """
+        raise NotImplementedError
+
+    def stream_text(self, text: str) -> Iterator[str]:
+        """
+        Stream assistant responses.
+
+        Concrete implementations may override this method.
+        """
+        yield self.process_text(text)
+
+
+class AIEngineVoiceAssistant(VoiceAssistant):
+    """
+    Adapter around an AI engine implementation.
+
+    Any object implementing AIEngineProtocol can be used.
+    """
+
+    def __init__(
+        self,
+        engine: AIEngineProtocol,
+    ) -> None:
+        self._engine = engine
+
+    @property
+    def engine(self) -> AIEngineProtocol:
+        """Return the wrapped AI engine."""
+        return self._engine
+
+    def process_text(self, text: str) -> str:
+        """Generate a complete AI response."""
+        return self._engine.chat(text)
+
+    def stream_text(self, text: str) -> Iterator[str]:
+        """Stream the AI response."""
+        yield from self._engine.stream_chat(text)
+
+==================================================================
+FILE: voice/audio_manager.py
+==================================================================
+"""
+Audio manager for the Nexus AI voice subsystem.
+
+This module is responsible for managing audio configuration and
+validating audio settings. It intentionally contains no platform-
+specific or third-party audio implementation. Concrete backends
+(e.g. sounddevice, PyAudio, etc.) will be added later while keeping
+this interface unchanged.
+"""
+
+from __future__ import annotations
+
+from dataclasses import replace
+
+from .exceptions import AudioError
+from .models import VoiceSettings
+
+
+class AudioManager:
+    """
+    Manages audio configuration for the voice subsystem.
+
+    This class is backend-independent. It stores and validates
+    audio settings but does not access microphones or speakers.
+    """
+
+    MIN_SAMPLE_RATE = 8_000
+    MAX_SAMPLE_RATE = 48_000
+
+    MIN_CHANNELS = 1
+    MAX_CHANNELS = 2
+
+    MIN_CHUNK_SIZE = 256
+    MAX_CHUNK_SIZE = 8_192
+
+    def __init__(self, settings: VoiceSettings | None = None) -> None:
+        """
+        Initialize the audio manager.
+
+        Args:
+            settings:
+                Optional voice settings. If omitted, default
+                VoiceSettings are used.
+        """
+        self._settings = settings or VoiceSettings()
+        self._validate(self._settings)
+
+    @property
+    def settings(self) -> VoiceSettings:
+        """
+        Return a copy of the current settings.
+
+        Returning a copy prevents accidental external mutation.
+        """
+        return replace(self._settings)
+
+    def update_settings(self, settings: VoiceSettings) -> None:
+        """
+        Replace the current audio configuration.
+
+        Args:
+            settings:
+                New validated settings.
+
+        Raises:
+            AudioError:
+                If the supplied settings are invalid.
+        """
+        self._validate(settings)
+        self._settings = settings
+
+    def set_input_device(self, device: str | None) -> None:
+        """Set the preferred microphone device."""
+        self._settings.input_device = device
+
+    def set_output_device(self, device: str | None) -> None:
+        """Set the preferred speaker device."""
+        self._settings.output_device = device
+
+    def get_input_device(self) -> str | None:
+        """Return the configured microphone device."""
+        return self._settings.input_device
+
+    def get_output_device(self) -> str | None:
+        """Return the configured speaker device."""
+        return self._settings.output_device
+
+    def supports_streaming(self) -> bool:
+        """
+        Indicates whether streaming is supported.
+
+        Streaming will be implemented in a later sprint.
+        """
+        return False
+
+    def reset(self) -> None:
+        """Restore default voice settings."""
+        self._settings = VoiceSettings()
+
+    def _validate(self, settings: VoiceSettings) -> None:
+        """Validate voice configuration."""
+
+        if not (
+            self.MIN_SAMPLE_RATE
+            <= settings.sample_rate
+            <= self.MAX_SAMPLE_RATE
+        ):
+            raise AudioError(
+                f"Sample rate must be between "
+                f"{self.MIN_SAMPLE_RATE} and "
+                f"{self.MAX_SAMPLE_RATE} Hz."
+            )
+
+        if not (
+            self.MIN_CHANNELS
+            <= settings.channels
+            <= self.MAX_CHANNELS
+        ):
+            raise AudioError(
+                f"Channels must be between "
+                f"{self.MIN_CHANNELS} and "
+                f"{self.MAX_CHANNELS}."
+            )
+
+        if not (
+            self.MIN_CHUNK_SIZE
+            <= settings.chunk_size
+            <= self.MAX_CHUNK_SIZE
+        ):
+            raise AudioError(
+                f"Chunk size must be between "
+                f"{self.MIN_CHUNK_SIZE} and "
+                f"{self.MAX_CHUNK_SIZE}."
+            )
+
+        if settings.speech_timeout <= 0:
+            raise AudioError(
+                "Speech timeout must be greater than zero."
+            )
+
+        if settings.silence_timeout <= 0:
+            raise AudioError(
+                "Silence timeout must be greater than zero."
+            )
+
+==================================================================
+FILE: voice/audio_queue.py
+==================================================================
+"""
+Thread-safe audio queue for the Nexus AI voice subsystem.
+
+This module provides a producer/consumer queue for audio chunks.
+It is used to decouple microphone capture, speech recognition,
+wake-word detection, and audio playback.
+
+The queue is backend-independent and can be used by any audio
+implementation.
+"""
+
+from __future__ import annotations
+
+from queue import Empty, Full, Queue
+
+from .models import AudioChunk
+
+
+class AudioQueue:
+    """
+    Thread-safe queue for AudioChunk objects.
+    """
+
+    DEFAULT_MAX_SIZE = 100
+
+    def __init__(
+        self,
+        max_size: int = DEFAULT_MAX_SIZE,
+    ) -> None:
+        self._queue: Queue[AudioChunk] = Queue(
+            maxsize=max_size,
+        )
+
+    @property
+    def max_size(self) -> int:
+        """
+        Return the maximum queue size.
+        """
+        return self._queue.maxsize
+
+    def put(
+        self,
+        chunk: AudioChunk,
+        *,
+        block: bool = True,
+        timeout: float | None = None,
+    ) -> None:
+        """
+        Add an audio chunk to the queue.
+        """
+        self._queue.put(
+            chunk,
+            block=block,
+            timeout=timeout,
+        )
+
+    def get(
+        self,
+        *,
+        block: bool = True,
+        timeout: float | None = None,
+    ) -> AudioChunk:
+        """
+        Remove and return an audio chunk.
+        """
+        return self._queue.get(
+            block=block,
+            timeout=timeout,
+        )
+
+    def clear(self) -> None:
+        """
+        Remove all queued audio.
+        """
+        while True:
+            try:
+                self._queue.get_nowait()
+            except Empty:
+                break
+
+    def empty(self) -> bool:
+        """
+        Return True if the queue is empty.
+        """
+        return self._queue.empty()
+
+    def full(self) -> bool:
+        """
+        Return True if the queue is full.
+        """
+        return self._queue.full()
+
+    def size(self) -> int:
+        """
+        Return the current queue size.
+        """
+        return self._queue.qsize()
+
+    def put_nowait(
+        self,
+        chunk: AudioChunk,
+    ) -> None:
+        """
+        Add an audio chunk without blocking.
+        """
+        self._queue.put_nowait(chunk)
+
+    def get_nowait(self) -> AudioChunk:
+        """
+        Remove an audio chunk without blocking.
+        """
+        return self._queue.get_nowait()
+
+    def reset(self) -> None:
+        """
+        Reset the queue.
+        """
+        self.clear()
+
+
+class AudioQueueFullError(Full):
+    """
+    Raised when the audio queue is full.
+    """
+
+
+class AudioQueueEmptyError(Empty):
+    """
+    Raised when the audio queue is empty.
+    """
+
+==================================================================
+FILE: voice/backends/__init__.py
+==================================================================
+"""
+Voice backend implementations.
+
+Concrete implementations of the interfaces defined in
+voice.interfaces live in this package.
+"""
+
+from .mock_audio_input import MockAudioInput
+from .sounddevice_input import SoundDeviceInput
+
+__all__ = [
+    "MockAudioInput",
+    "SoundDeviceInput",
+]
+
+==================================================================
+FILE: voice/backends/mock_audio_input.py
+==================================================================
+"""
+Mock microphone backend.
+
+This backend is intended for unit testing and development.
+It provides deterministic audio data without requiring
+actual microphone hardware.
+"""
+
+from __future__ import annotations
+
+from voice.interfaces import AudioInput
+from voice.models import AudioChunk
+
+
+class MockAudioInput(AudioInput):
+    """
+    Mock implementation of the AudioInput interface.
+
+    This backend simulates microphone input and is used
+    exclusively for testing and development.
+    """
+
+    DEFAULT_SAMPLE_RATE = 16000
+    DEFAULT_CHANNELS = 1
+    DEFAULT_SAMPLE_WIDTH = 2
+
+    def __init__(self) -> None:
+        self._running = False
+        self._chunks_read = 0
+
+    @property
+    def is_running(self) -> bool:
+        """
+        Return whether the mock microphone is active.
+        """
+        return self._running
+
+    @property
+    def chunks_read(self) -> int:
+        """
+        Return the number of audio chunks produced.
+        """
+        return self._chunks_read
+
+    def start(self) -> None:
+        """
+        Start the mock microphone.
+        """
+        self._running = True
+
+    def stop(self) -> None:
+        """
+        Stop the mock microphone.
+        """
+        self._running = False
+
+    def read(self) -> AudioChunk:
+        """
+        Return a deterministic audio chunk.
+
+        Returns
+        -------
+        AudioChunk
+            Simulated microphone data.
+        """
+        if not self._running:
+            raise RuntimeError(
+                "MockAudioInput is not running."
+            )
+
+        self._chunks_read += 1
+
+        return AudioChunk(
+            data=b"\x00" * 1024,
+            sample_rate=self.DEFAULT_SAMPLE_RATE,
+            channels=self.DEFAULT_CHANNELS,
+            sample_width=self.DEFAULT_SAMPLE_WIDTH,
+        )
+
+    def reset(self) -> None:
+        """
+        Reset the backend.
+        """
+        self._running = False
+        self._chunks_read = 0
+
+==================================================================
+FILE: voice/backends/openwakeword_detector.py
+==================================================================
+"""
+OpenWakeWord backend for the Nexus AI voice subsystem.
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, TYPE_CHECKING
+
+from ..exceptions import WakeWordError
+from ..interfaces import WakeWordDetector
+
+# Only import for static type checking.
+# The runtime import is performed in start() so the module
+# can still be imported even if openwakeword is not installed.
+if TYPE_CHECKING:
+    from openwakeword.model import Model
+else:
+    Model = Any
+
+
+class OpenWakeWordDetector(WakeWordDetector):
+    """
+    Wake-word detector powered by OpenWakeWord.
+    """
+
+    def __init__(
+        self,
+        model_path: str |Path,
+        threshold: float = 0.5,
+    ) -> None:
+        self._model_path = Path(model_path)
+        self._threshold = threshold
+
+        # Runtime model instance
+        self._model: Any = None
+
+        self._running = False
+        self._detected = False
+
+        if not self._model_path.exists():
+            raise WakeWordError(
+                f"Wake-word model not found: {self._model_path}"
+            )
+
+    @property
+    def is_running(self) -> bool:
+        """Return whether the detector is running."""
+        return self._running
+
+    @property
+    def threshold(self) -> float:
+        """Detection threshold."""
+        return self._threshold
+
+    def start(self) -> None:
+        """
+        Load the wake-word model and start detection.
+        """
+        if self._running:
+            return
+
+        try:
+            from openwakeword.model import Model
+        except ImportError as exc:
+            raise WakeWordError(
+                "OpenWakeWord is not installed."
+            ) from exc
+
+        try:
+            self._model = Model(
+                wakeword_models=[str(self._model_path)]
+            )
+        except Exception as exc:
+            raise WakeWordError(
+                f"Failed to load wake-word model: {exc}"
+            ) from exc
+
+        self._running = True
+        self._detected = False
+
+    def stop(self) -> None:
+        """
+        Stop wake-word detection.
+        """
+        self._running = False
+        self._model = None
+        self._detected = False
+
+    def process(self, pcm) -> bool:
+        """
+        Process one frame of PCM audio.
+
+        Args:
+            pcm:
+                16-bit mono PCM samples at 16 kHz.
+
+        Returns:
+            True if the wake word was detected.
+        """
+        if not self._running:
+            raise WakeWordError(
+                "Wake-word detector is not running."
+            )
+
+        if self._model is None:
+            raise WakeWordError(
+                "Wake-word model has not been loaded."
+            )
+
+        try:
+            predictions = self._model.predict(pcm)
+
+            self._detected = any(
+                score >= self._threshold
+                for score in predictions.values()
+            )
+
+            return self._detected
+
+        except Exception as exc:
+            raise WakeWordError(
+                f"Wake-word detection failed: {exc}"
+            ) from exc
+
+    def detected(self) -> bool:
+        """
+        Return whether the wake word has been detected.
+        """
+        return self._detected
+
+    def reset(self) -> None:
+        """
+        Reset the detector state.
+        """
+        self._detected = False
+
+==================================================================
+FILE: voice/backends/piper_tts.py
+==================================================================
+"""
+Piper Text-to-Speech backend for the Nexus AI voice subsystem.
+"""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+from typing import Optional
+
+from ..exceptions import TextToSpeechError
+from ..interfaces import TextToSpeech
+
+
+class PiperTextToSpeech(TextToSpeech):
+    """
+    Offline Text-to-Speech backend powered by Piper.
+
+    This backend invokes the Piper executable using a local
+    voice model and streams synthesized audio to an output file
+    or directly to the configured audio device (future support).
+    """
+
+    def __init__(
+        self,
+        executable: str | Path,
+        model_path: str | Path,
+        output_file: Optional[str | Path] = None,
+    ) -> None:
+        self._executable = Path(executable)
+        self._model_path = Path(model_path)
+        self._output_file = (
+            Path(output_file)
+            if output_file is not None
+            else Path("piper_output.wav")
+        )
+
+        if not self._executable.exists():
+            raise TextToSpeechError(
+                f"Piper executable not found: {self._executable}"
+            )
+
+        if not self._model_path.exists():
+            raise TextToSpeechError(
+                f"Piper model not found: {self._model_path}"
+            )
+
+    @property
+    def executable(self) -> Path:
+        """Return the Piper executable path."""
+        return self._executable
+
+    @property
+    def model_path(self) -> Path:
+        """Return the Piper model path."""
+        return self._model_path
+
+    @property
+    def output_file(self) -> Path:
+        """Return the synthesized audio file."""
+        return self._output_file
+
+    def speak(self, text: str) -> None:
+        """
+        Convert text into speech.
+
+        Args:
+            text:
+                Text to synthesize.
+
+        Raises:
+            TextToSpeechError:
+                If synthesis fails.
+        """
+
+        if not isinstance(text, str):
+            raise TextToSpeechError(
+                "Text must be a string."
+            )
+
+        text = text.strip()
+
+        if not text:
+            raise TextToSpeechError(
+                "Cannot synthesize empty text."
+            )
+
+        command = [
+            str(self._executable),
+            "--model",
+            str(self._model_path),
+            "--output_file",
+            str(self._output_file),
+        ]
+
+        try:
+            subprocess.run(
+                command,
+                input=text.encode("utf-8"),
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
+
+        except FileNotFoundError as exc:
+            raise TextToSpeechError(
+                "Piper executable could not be found."
+            ) from exc
+
+        except subprocess.CalledProcessError as exc:
+            message = exc.stderr.decode(
+                "utf-8",
+                errors="ignore",
+            )
+
+            raise TextToSpeechError(
+                f"Piper synthesis failed: {message}"
+            ) from exc
+
+==================================================================
+FILE: voice/backends/sounddevice_input.py
+==================================================================
+"""
+SoundDevice microphone backend.
+
+Provides microphone capture using the sounddevice library while
+implementing the AudioInput interface.
+"""
+
+from __future__ import annotations
+
+import threading
+
+import numpy as np
+import sounddevice as sd
+
+from voice.exceptions import AudioError
+from voice.interfaces import AudioInput
+from voice.models import AudioChunk
+
+
+class SoundDeviceInput(AudioInput):
+    """
+    Real microphone backend using sounddevice.
+    """
+
+    def __init__(
+        self,
+        sample_rate: int = 16000,
+        channels: int = 1,
+        chunk_size: int = 1024,
+        device: int | None = None,
+    ) -> None:
+        self._sample_rate = sample_rate
+        self._channels = channels
+        self._chunk_size = chunk_size
+        self._device = device
+
+        self._stream: sd.InputStream | None = None
+        self._running = False
+        self._lock = threading.Lock()
+
+    @property
+    def is_running(self) -> bool:
+        """
+        Return whether the microphone is active.
+        """
+        return self._running
+
+    def start(self) -> None:
+        """
+        Start capturing microphone audio.
+        """
+        if self._running:
+            return
+
+        try:
+            self._stream = sd.InputStream(
+                samplerate=self._sample_rate,
+                channels=self._channels,
+                dtype="int16",
+                blocksize=self._chunk_size,
+                device=self._device,
+            )
+
+            self._stream.start()
+            self._running = True
+
+        except Exception as exc:
+            raise AudioError(
+                f"Unable to start microphone: {exc}"
+            ) from exc
+
+    def stop(self) -> None:
+        """
+        Stop microphone capture.
+        """
+        if not self._running:
+            return
+
+        with self._lock:
+            if self._stream is not None:
+                self._stream.stop()
+                self._stream.close()
+                self._stream = None
+
+            self._running = False
+
+    def read(self) -> AudioChunk:
+        """
+        Read one chunk of microphone audio.
+        """
+        if not self._running:
+            raise AudioError(
+                "Microphone has not been started."
+            )
+
+        if self._stream is None:
+            raise AudioError(
+                "Input stream is unavailable."
+            )
+
+        try:
+            samples, overflowed = self._stream.read(
+                self._chunk_size
+            )
+
+            if overflowed:
+                raise AudioError(
+                    "Audio input overflow."
+                )
+
+            audio_bytes = (
+                np.asarray(
+                    samples,
+                    dtype=np.int16,
+                ).tobytes()
+            )
+
+            return AudioChunk(
+                data=audio_bytes,
+                sample_rate=self._sample_rate,
+                channels=self._channels,
+                sample_width=2,
+            )
+
+        except Exception as exc:
+            raise AudioError(
+                f"Unable to read microphone: {exc}"
+            ) from exc
+
+    def reset(self) -> None:
+        """
+        Reset the backend.
+        """
+        self.stop()
+
+    @staticmethod
+    def available_devices() -> list[dict]:
+        """
+        Return all available audio devices.
+        """
+        try:
+            return list(sd.query_devices())
+        except Exception as exc:
+            raise AudioError(
+                f"Unable to query audio devices: {exc}"
+            ) from exc
+
+    @staticmethod
+    def default_input_device() -> int | None:
+        """
+        Return the default input device index.
+        """
+        try:
+            default = sd.default.device
+
+            if default is None:
+                return None
+
+            return default[0]
+        except Exception:
+            return None
+
+==================================================================
+FILE: voice/backends/sounddevice_output.py
+==================================================================
+"""
+SoundDevice speaker backend.
+
+This module provides audio playback using the `sounddevice`
+library while implementing the AudioOutput interface.
+"""
+
+from __future__ import annotations
+
+import threading
+
+import numpy as np
+import sounddevice as sd
+
+from voice.exceptions import AudioError
+from voice.interfaces import AudioOutput
+from voice.models import AudioChunk
+
+
+class SoundDeviceOutput(AudioOutput):
+    """
+    Audio output backend using sounddevice.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+
+    def play(self, audio: AudioChunk) -> None:
+        """
+        Play one AudioChunk.
+        """
+        if not audio.data:
+            raise AudioError("Audio chunk is empty.")
+
+        samples = np.frombuffer(
+            audio.data,
+            dtype=np.int16,
+        )
+
+        if audio.channels > 1:
+            samples = samples.reshape(
+                -1,
+                audio.channels,
+            )
+
+        with self._lock:
+            try:
+                sd.play(
+                    samples,
+                    samplerate=audio.sample_rate,
+                )
+                sd.wait()
+            except Exception as exc:
+                raise AudioError(
+                    f"Audio playback failed: {exc}"
+                ) from exc
+
+    @staticmethod
+    def available_devices() -> list[dict]:
+        """
+        Return all available audio devices.
+        """
+        try:
+            return list(sd.query_devices())
+        except Exception as exc:
+            raise AudioError(
+                f"Unable to query audio devices: {exc}"
+            ) from exc
+
+    @staticmethod
+    def default_output_device() -> int | None:
+        """
+        Return the default output device index.
+        """
+        try:
+            default = sd.default.device
+
+            if default is None:
+                return None
+
+            return default[1]
+        except Exception:
+            return None
+
+==================================================================
+FILE: voice/backends/vosk_stt.py
+==================================================================
+"""
+Vosk Speech-to-Text backend for the Nexus AI voice subsystem.
+"""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import Optional
+
+from vosk import KaldiRecognizer, Model
+
+from ..exceptions import SpeechToTextError
+from ..interfaces import SpeechToText
+from ..models import AudioChunk
+
+
+class VoskSpeechToText(SpeechToText):
+    """
+    Offline Speech-to-Text backend using Vosk.
+
+    This backend loads a local Vosk model and converts
+    raw PCM audio into text.
+    """
+
+    def __init__(
+        self,
+        model_path: str | Path,
+        sample_rate: int = 16000,
+    ) -> None:
+        self._sample_rate = sample_rate
+        self._model_path = Path(model_path)
+
+        if not self._model_path.exists():
+            raise SpeechToTextError(
+                f"Vosk model not found: {self._model_path}"
+            )
+
+        try:
+            self._model = Model(str(self._model_path))
+        except Exception as exc:
+            raise SpeechToTextError(
+                f"Failed to load Vosk model: {exc}"
+            ) from exc
+
+        self._recognizer = KaldiRecognizer(
+            self._model,
+            self._sample_rate,
+        )
+
+    @property
+    def sample_rate(self) -> int:
+        """Configured sample rate."""
+        return self._sample_rate
+
+    @property
+    def model_path(self) -> Path:
+        """Return the loaded model path."""
+        return self._model_path
+
+    def reset(self) -> None:
+        """
+        Reset the recognizer state.
+        """
+        self._recognizer = KaldiRecognizer(
+            self._model,
+            self._sample_rate,
+        )
+
+    def transcribe(self, audio: AudioChunk) -> str:
+        """
+        Convert an AudioChunk into text.
+
+        Args:
+            audio:
+                Raw PCM audio.
+
+        Returns:
+            Recognized text.
+
+        Raises:
+            SpeechToTextError:
+                If transcription fails.
+        """
+
+        if audio.sample_rate != self._sample_rate:
+            raise SpeechToTextError(
+                f"Expected {self._sample_rate} Hz audio, "
+                f"received {audio.sample_rate} Hz."
+            )
+
+        try:
+            accepted = self._recognizer.AcceptWaveform(audio.data)
+
+            if accepted:
+                result = json.loads(
+                    self._recognizer.Result()
+                )
+            else:
+                result = json.loads(
+                    self._recognizer.FinalResult()
+                )
+
+            return result.get("text", "").strip()
+
+        except Exception as exc:
+            raise SpeechToTextError(
+                f"Speech recognition failed: {exc}"
+            ) from exc
+
+==================================================================
+FILE: voice/config.py
+==================================================================
+"""
+Voice configuration manager for the Nexus AI voice subsystem.
+
+This module provides loading, saving, and resetting of the
+voice backend configuration.
+
+Configuration is stored as JSON and is independent of any
+specific backend implementation.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import asdict
+from pathlib import Path
+
+from .settings import VoiceBackendSettings
+
+
+class VoiceConfig:
+    """
+    Manages persistent voice configuration.
+    """
+
+    DEFAULT_FILENAME = "voice_settings.json"
+
+    def __init__(
+        self,
+        config_path: str | Path | None = None,
+    ) -> None:
+        if config_path is None:
+            config_path = self.DEFAULT_FILENAME
+
+        self._config_path = Path(config_path)
+        self._settings = VoiceBackendSettings()
+
+    @property
+    def path(self) -> Path:
+        """Return the configuration file path."""
+        return self._config_path
+
+    @property
+    def settings(self) -> VoiceBackendSettings:
+        """Return the current settings."""
+        return self._settings
+
+    def load(self) -> VoiceBackendSettings:
+        """
+        Load configuration from disk.
+
+        If the file does not exist, default settings are returned.
+        """
+        if not self._config_path.exists():
+            self._settings = VoiceBackendSettings()
+            return self._settings
+
+        with self._config_path.open(
+            "r",
+            encoding="utf-8",
+        ) as file:
+            data = json.load(file)
+
+        self._settings = VoiceBackendSettings(**data)
+
+        return self._settings
+
+    def save(self) -> None:
+        """
+        Save the current configuration.
+        """
+        self._config_path.parent.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        with self._config_path.open(
+            "w",
+            encoding="utf-8",
+        ) as file:
+            json.dump(
+                asdict(self._settings),
+                file,
+                indent=4,
+                sort_keys=True,
+            )
+
+    def update(
+        self,
+        settings: VoiceBackendSettings,
+    ) -> None:
+        """
+        Replace the current settings.
+        """
+        self._settings = settings
+
+    def reset(self) -> VoiceBackendSettings:
+        """
+        Restore default settings.
+        """
+        self._settings = VoiceBackendSettings()
+        return self._settings
+
+==================================================================
+FILE: voice/exceptions.py
+==================================================================
+"""
+Custom exceptions for the Nexus AI voice subsystem.
+"""
+
+
+class VoiceError(Exception):
+    """Base exception for all voice-related errors."""
+
+
+class AudioError(VoiceError):
+    """Raised when an audio operation fails."""
+
+
+class SpeechToTextError(VoiceError):
+    """Raised when speech recognition fails."""
+
+
+class TextToSpeechError(VoiceError):
+    """Raised when speech synthesis fails."""
+
+
+class WakeWordError(VoiceError):
+    """Raised when wake-word detection fails."""
+
+==================================================================
+FILE: voice/interfaces.py
+==================================================================
+"""
+Abstract interfaces for the Nexus AI voice subsystem.
+"""
+
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+
+from .models import AudioChunk
+
+
+class SpeechToText(ABC):
+    """Speech-to-text provider interface."""
+
+    @abstractmethod
+    def transcribe(self, audio: AudioChunk) -> str:
+        """Convert audio into text."""
+
+
+class TextToSpeech(ABC):
+    """Text-to-speech provider interface."""
+
+    @abstractmethod
+    def speak(self, text: str) -> None:
+        """Speak the supplied text."""
+
+
+class WakeWordDetector(ABC):
+    """Wake-word detection interface."""
+
+    @abstractmethod
+    def start(self) -> None:
+        """Start wake-word detection."""
+
+    @abstractmethod
+    def stop(self) -> None:
+        """Stop wake-word detection."""
+
+    @abstractmethod
+    def detected(self) -> bool:
+        """Return True when the wake word has been detected."""
+
+
+class AudioInput(ABC):
+    """Microphone interface."""
+
+    @abstractmethod
+    def start(self) -> None:
+        """Start capturing audio."""
+
+    @abstractmethod
+    def stop(self) -> None:
+        """Stop capturing audio."""
+
+    @abstractmethod
+    def read(self) -> AudioChunk:
+        """Read a single chunk of audio."""
+
+
+class AudioOutput(ABC):
+    """Speaker interface."""
+
+    @abstractmethod
+    def play(self, audio: AudioChunk) -> None:
+        """Play an audio chunk."""
+
+==================================================================
+FILE: voice/microphone_manager.py
+==================================================================
+"""
+Microphone manager for the Nexus AI voice subsystem.
+
+This module provides a backend-independent microphone manager.
+Concrete audio backends will be integrated in later steps while
+keeping this API stable.
+"""
+
+from __future__ import annotations
+
+from typing import Optional
+
+from .audio_manager import AudioManager
+from .exceptions import AudioError
+from .interfaces import AudioInput
+from .models import AudioChunk
+
+
+class MicrophoneManager:
+    """
+    Manages microphone lifecycle.
+
+    The manager delegates actual microphone operations to an
+    AudioInput implementation, allowing different audio
+    backends to be plugged in without changing higher-level code.
+    """
+
+    def __init__(
+        self,
+        audio_manager: AudioManager,
+        audio_input: Optional[AudioInput] = None,
+    ) -> None:
+        self._audio_manager = audio_manager
+        self._audio_input = audio_input
+        self._is_recording = False
+
+    @property
+    def is_recording(self) -> bool:
+        """Return whether recording is currently active."""
+        return self._is_recording
+
+    @property
+    def audio_input(self) -> Optional[AudioInput]:
+        """Return the configured audio input backend."""
+        return self._audio_input
+
+    def set_audio_input(self, audio_input: AudioInput) -> None:
+        """
+        Register the microphone backend.
+
+        Args:
+            audio_input:
+                Concrete implementation of AudioInput.
+        """
+        self._audio_input = audio_input
+
+    def start(self) -> None:
+        """
+        Start microphone recording.
+
+        Raises:
+            AudioError:
+                If no backend has been configured.
+        """
+        if self._audio_input is None:
+            raise AudioError(
+                "No audio input backend has been configured."
+            )
+
+        if self._is_recording:
+            return
+
+        self._audio_input.start()
+        self._is_recording = True
+
+    def stop(self) -> None:
+        """
+        Stop microphone recording.
+
+        Safe to call multiple times.
+        """
+        if self._audio_input is None:
+            return
+
+        if not self._is_recording:
+            return
+
+        self._audio_input.stop()
+        self._is_recording = False
+
+    def read_chunk(self) -> AudioChunk:
+        """
+        Read a single chunk of microphone audio.
+
+        Returns:
+            AudioChunk
+
+        Raises:
+            AudioError:
+                If recording has not started.
+        """
+        if self._audio_input is None:
+            raise AudioError(
+                "No audio input backend has been configured."
+            )
+
+        if not self._is_recording:
+            raise AudioError(
+                "Microphone is not currently recording."
+            )
+
+        return self._audio_input.read()
+
+    def reset(self) -> None:
+        """
+        Reset the microphone manager.
+
+        Stops recording if necessary and removes
+        the configured backend.
+        """
+        self.stop()
+        self._audio_input = None
+
+==================================================================
+FILE: voice/models.py
+==================================================================
+"""
+Shared models for the Nexus AI voice subsystem.
+"""
+
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Optional
+
+
+class VoiceState(str, Enum):
+    """Current state of the voice engine."""
+
+    IDLE = "idle"
+    LISTENING = "listening"
+    PROCESSING = "processing"
+    SPEAKING = "speaking"
+    ERROR = "error"
+
+
+@dataclass(slots=True)
+class AudioChunk:
+    """
+    Represents a chunk of raw audio.
+    """
+
+    data: bytes
+    sample_rate: int
+    channels: int
+    sample_width: int
+
+
+@dataclass(slots=True)
+class VoiceSettings:
+    """
+    Configuration shared across the voice subsystem.
+    """
+
+    sample_rate: int = 16000
+    channels: int = 1
+    chunk_size: int = 1024
+    wake_word_enabled: bool = True
+    speech_timeout: float = 5.0
+    silence_timeout: float = 1.5
+    input_device: Optional[str] = None
+    output_device: Optional[str] = None
+    metadata: dict[str, str] = field(default_factory=dict)
+
+==================================================================
+FILE: voice/session.py
+==================================================================
+"""
+Voice session management for the Nexus AI voice subsystem.
+
+This module manages the runtime state of a voice conversation.
+It is independent of the VoiceEngine and backend implementations.
+
+A VoiceSession represents one active interaction between the user
+and Nexus AI.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+
+
+@dataclass(slots=True)
+class VoiceSession:
+    """
+    Represents the current runtime voice session.
+    """
+
+    listening: bool = False
+    processing: bool = False
+    speaking: bool = False
+    paused: bool = False
+    interrupted: bool = False
+
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now(UTC)
+    )
+
+    last_activity: datetime = field(
+        default_factory=lambda: datetime.now(UTC)
+    )
+
+    interaction_count: int = 0
+
+    @property
+    def active(self) -> bool:
+        """
+        Return True if any voice activity is occurring.
+        """
+        return (
+            self.listening
+            or self.processing
+            or self.speaking
+        )
+
+    def touch(self) -> None:
+        """
+        Update the last activity timestamp.
+        """
+        self.last_activity = datetime.now(UTC)
+
+    def start_listening(self) -> None:
+        """
+        Enter the listening state.
+        """
+        self.reset_flags()
+        self.listening = True
+        self.touch()
+
+    def start_processing(self) -> None:
+        """
+        Enter the processing state.
+        """
+        self.reset_flags()
+        self.processing = True
+        self.touch()
+
+    def start_speaking(self) -> None:
+        """
+        Enter the speaking state.
+        """
+        self.reset_flags()
+        self.speaking = True
+        self.interaction_count += 1
+        self.touch()
+
+    def pause(self) -> None:
+        """
+        Pause the session.
+        """
+        self.paused = True
+        self.touch()
+
+    def resume(self) -> None:
+        """
+        Resume the session.
+        """
+        self.paused = False
+        self.touch()
+
+    def interrupt(self) -> None:
+        """
+        Interrupt the current interaction.
+        """
+        self.interrupted = True
+        self.reset_flags()
+        self.touch()
+
+    def reset_flags(self) -> None:
+        """
+        Clear all runtime state flags.
+        """
+        self.listening = False
+        self.processing = False
+        self.speaking = False
+
+    def reset(self) -> None:
+        """
+        Restore the session to its initial state.
+        """
+        self.listening = False
+        self.processing = False
+        self.speaking = False
+        self.paused = False
+        self.interrupted = False
+        self.interaction_count = 0
+        self.touch()
+
+==================================================================
+FILE: voice/settings.py
+==================================================================
+"""
+Voice settings for the Nexus AI voice subsystem.
+
+This module defines the runtime configuration used by the voice
+backends. It is independent from any specific implementation and
+contains only validated configuration values.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass(slots=True)
+class VoiceBackendSettings:
+    """
+    Runtime settings shared by all voice backends.
+    """
+
+    # Audio
+    sample_rate: int = 16_000
+    channels: int = 1
+    chunk_size: int = 1024
+
+    # Devices
+    input_device: str | None = None
+    output_device: str | None = None
+
+    # Wake Word
+    wake_word_enabled: bool = True
+    wake_word: str = "Hey Nexus"
+
+    # Speech Recognition
+    language: str = "en"
+
+    # Timeouts
+    speech_timeout: float = 5.0
+    silence_timeout: float = 1.0
+
+    # Voice Output
+    voice_name: str = "default"
+    volume: float = 1.0
+    speech_rate: float = 1.0
+
+    @property
+    def frame_duration_ms(self) -> float:
+        """
+        Duration of one audio chunk in milliseconds.
+        """
+        return (
+            self.chunk_size
+            / self.sample_rate
+        ) * 1000.0
+
+==================================================================
+FILE: voice/speech_to_text.py
+==================================================================
+"""
+Speech-to-Text manager for the Nexus AI voice subsystem.
+
+This module provides a backend-independent Speech-to-Text (STT)
+manager. Concrete implementations (e.g. Vosk, Faster-Whisper,
+Whisper.cpp) will be added later without changing this interface.
+"""
+
+from __future__ import annotations
+
+from typing import Optional
+
+from .exceptions import SpeechToTextError
+from .interfaces import SpeechToText
+from .models import AudioChunk
+
+
+class SpeechToTextManager:
+    """
+    Coordinates speech recognition using a pluggable backend.
+
+    The manager delegates transcription to a concrete
+    SpeechToText implementation.
+    """
+
+    def __init__(
+        self,
+        backend: Optional[SpeechToText] = None,
+    ) -> None:
+        self._backend = backend
+
+    @property
+    def backend(self) -> Optional[SpeechToText]:
+        """Return the configured STT backend."""
+        return self._backend
+
+    def set_backend(self, backend: SpeechToText) -> None:
+        """
+        Configure the STT backend.
+
+        Args:
+            backend:
+                Concrete implementation of the SpeechToText interface.
+        """
+        self._backend = backend
+
+    def has_backend(self) -> bool:
+        """Return True if an STT backend has been configured."""
+        return self._backend is not None
+
+    def transcribe(self, audio: AudioChunk) -> str:
+        """
+        Convert an audio chunk into text.
+
+        Args:
+            audio:
+                Audio to transcribe.
+
+        Returns:
+            Recognized text.
+
+        Raises:
+            SpeechToTextError:
+                If no backend is configured or the backend
+                returns invalid output.
+        """
+        if self._backend is None:
+            raise SpeechToTextError(
+                "No Speech-to-Text backend has been configured."
+            )
+
+        text = self._backend.transcribe(audio)
+
+        if not isinstance(text, str):
+            raise SpeechToTextError(
+                "Speech-to-Text backend returned an invalid result."
+            )
+
+        return text.strip()
+
+    def reset(self) -> None:
+        """Remove the configured backend."""
+        self._backend = None
+
+==================================================================
+FILE: voice/text_to_speech.py
+==================================================================
+"""
+Text-to-Speech manager for the Nexus AI voice subsystem.
+
+This module provides a backend-independent Text-to-Speech (TTS)
+manager. Concrete implementations (e.g. Piper, pyttsx3, Coqui TTS)
+will be added later without changing this interface.
+"""
+
+from __future__ import annotations
+
+from typing import Optional
+
+from .exceptions import TextToSpeechError
+from .interfaces import TextToSpeech
+
+
+class TextToSpeechManager:
+    """
+    Coordinates speech synthesis using a pluggable backend.
+
+    The manager delegates speech synthesis to a concrete
+    TextToSpeech implementation.
+    """
+
+    def __init__(
+        self,
+        backend: Optional[TextToSpeech] = None,
+    ) -> None:
+        self._backend = backend
+
+    @property
+    def backend(self) -> Optional[TextToSpeech]:
+        """Return the configured TTS backend."""
+        return self._backend
+
+    def set_backend(self, backend: TextToSpeech) -> None:
+        """
+        Configure the Text-to-Speech backend.
+
+        Args:
+            backend:
+                Concrete implementation of the TextToSpeech interface.
+        """
+        self._backend = backend
+
+    def has_backend(self) -> bool:
+        """Return True if a backend has been configured."""
+        return self._backend is not None
+
+    def speak(self, text: str) -> None:
+        """
+        Convert text into spoken audio.
+
+        Args:
+            text:
+                Text to speak.
+
+        Raises:
+            TextToSpeechError:
+                If no backend is configured or the input is invalid.
+        """
+        if self._backend is None:
+            raise TextToSpeechError(
+                "No Text-to-Speech backend has been configured."
+            )
+
+        if not isinstance(text, str):
+            raise TextToSpeechError(
+                "Text must be a string."
+            )
+
+        text = text.strip()
+
+        if not text:
+            raise TextToSpeechError(
+                "Cannot speak empty text."
+            )
+
+        self._backend.speak(text)
+
+    def stop(self) -> None:
+        """
+        Stop speech output.
+
+        This method is reserved for future backends that
+        support interrupting speech playback.
+        """
+        # Reserved for future implementation.
+        return
+
+    def reset(self) -> None:
+        """Remove the configured backend."""
+        self._backend = None
+
+==================================================================
+FILE: voice/voice_engine.py
+==================================================================
+"""
+Voice Engine for the Nexus AI voice subsystem.
+
+The VoiceEngine coordinates all voice-related components without
+depending on any specific audio, STT, TTS, or wake-word backend.
+
+AI interaction is performed through the VoiceAssistant interface,
+keeping the voice subsystem independent of the AI implementation.
+"""
+
+from __future__ import annotations
+
+from .assistant import VoiceAssistant
+from .audio_manager import AudioManager
+from .microphone_manager import MicrophoneManager
+from .models import AudioChunk, VoiceState
+from .speech_to_text import SpeechToTextManager
+from .text_to_speech import TextToSpeechManager
+from .wake_word import WakeWordManager
+
+
+class VoiceEngine:
+    """
+    High-level coordinator for the Nexus AI voice subsystem.
+    """
+
+    def __init__(
+        self,
+        audio_manager: AudioManager,
+        microphone_manager: MicrophoneManager,
+        speech_to_text: SpeechToTextManager,
+        text_to_speech: TextToSpeechManager,
+        wake_word: WakeWordManager,
+        assistant: VoiceAssistant,
+    ) -> None:
+        """
+        Initialize the Voice Engine.
+
+        Args:
+            audio_manager:
+                Audio configuration manager.
+
+            microphone_manager:
+                Microphone lifecycle manager.
+
+            speech_to_text:
+                Speech recognition manager.
+
+            text_to_speech:
+                Speech synthesis manager.
+
+            wake_word:
+                Wake-word detection manager.
+
+            assistant:
+                AI assistant adapter used to process user speech.
+        """
+        self._audio_manager = audio_manager
+        self._microphone_manager = microphone_manager
+        self._speech_to_text = speech_to_text
+        self._text_to_speech = text_to_speech
+        self._wake_word = wake_word
+        self._assistant = assistant
+
+        self._state = VoiceState.IDLE
+
+    @property
+    def state(self) -> VoiceState:
+        """Return the current engine state."""
+        return self._state
+
+    def start(self) -> None:
+        """
+        Start the voice engine.
+
+        This currently starts wake-word detection only.
+        """
+        self._wake_word.start()
+        self._state = VoiceState.IDLE
+
+    def stop(self) -> None:
+        """
+        Stop the voice engine.
+        """
+        self._microphone_manager.stop()
+        self._wake_word.stop()
+        self._state = VoiceState.IDLE
+
+    def listen_once(self) -> str:
+        """
+        Capture one audio chunk and transcribe it.
+
+        Returns
+        -------
+        str
+            Recognized text.
+        """
+        self._state = VoiceState.LISTENING
+
+        self._microphone_manager.start()
+
+        audio: AudioChunk = self._microphone_manager.read_chunk()
+
+        self._microphone_manager.stop()
+
+        self._state = VoiceState.PROCESSING
+
+        text = self._speech_to_text.transcribe(audio)
+
+        self._state = VoiceState.IDLE
+
+        return text
+
+    def speak(self, text: str) -> None:
+        """
+        Speak a text response.
+        """
+        self._state = VoiceState.SPEAKING
+
+        self._text_to_speech.speak(text)
+
+        self._state = VoiceState.IDLE
+
+    def process_once(self) -> str | None:
+        """
+        Execute one wake-word processing cycle.
+
+        Workflow
+
+            Wake Word
+                ↓
+            Record
+                ↓
+            Speech-to-Text
+
+        Returns
+        -------
+        str | None
+
+            Recognized text if the wake word was detected,
+            otherwise None.
+        """
+        if not self._wake_word.detect():
+            return None
+
+        return self.listen_once()
+
+    def chat_once(self) -> str | None:
+        """
+        Execute one complete voice interaction.
+
+        Workflow
+
+            Wake Word
+                ↓
+            Speech-to-Text
+                ↓
+            AI Assistant
+                ↓
+            Text-to-Speech
+
+        Returns
+        -------
+        str | None
+
+            AI response if a wake word was detected,
+            otherwise None.
+        """
+        text = self.process_once()
+
+        if text is None:
+            return None
+
+        response = self._assistant.process_text(text)
+
+        self.speak(response)
+
+        return response
+
+    def reset(self) -> None:
+        """
+        Reset the engine to its initial state.
+        """
+        self.stop()
+        self._state = VoiceState.IDLE
+
+==================================================================
+FILE: voice/wake_word.py
+==================================================================
+"""
+Wake Word manager for the Nexus AI voice subsystem.
+
+This module provides a backend-independent wake-word manager.
+Concrete implementations (e.g. Porcupine, OpenWakeWord) will
+be integrated later without changing this interface.
+"""
+
+from __future__ import annotations
+
+from typing import Optional
+
+from .exceptions import WakeWordError
+from .interfaces import WakeWordDetector
+
+
+class WakeWordManager:
+    """
+    Coordinates wake-word detection using a pluggable backend.
+    """
+
+    def __init__(
+        self,
+        backend: Optional[WakeWordDetector] = None,
+    ) -> None:
+        self._backend = backend
+        self._running = False
+
+    @property
+    def backend(self) -> Optional[WakeWordDetector]:
+        """Return the configured wake-word backend."""
+        return self._backend
+
+    @property
+    def is_running(self) -> bool:
+        """Return whether wake-word detection is active."""
+        return self._running
+
+    def set_backend(
+        self,
+        backend: WakeWordDetector,
+    ) -> None:
+        """
+        Configure the wake-word backend.
+
+        Args:
+            backend:
+                Concrete WakeWordDetector implementation.
+        """
+        self._backend = backend
+
+    def has_backend(self) -> bool:
+        """Return True if a backend has been configured."""
+        return self._backend is not None
+
+    def start(self) -> None:
+        """
+        Start wake-word detection.
+
+        Raises:
+            WakeWordError:
+                If no backend has been configured.
+        """
+        if self._backend is None:
+            raise WakeWordError(
+                "No wake-word backend has been configured."
+            )
+
+        if self._running:
+            return
+
+        self._backend.start()
+        self._running = True
+
+    def stop(self) -> None:
+        """
+        Stop wake-word detection.
+
+        Safe to call multiple times.
+        """
+        if self._backend is None:
+            self._running = False
+            return
+
+        if not self._running:
+            return
+
+        self._backend.stop()
+        self._running = False
+
+    def detect(self) -> bool:
+        """
+        Check whether the wake word has been detected.
+
+        Returns:
+            True if the wake word is detected.
+
+        Raises:
+            WakeWordError:
+                If no backend is configured or the
+                detector is not running.
+        """
+        if self._backend is None:
+            raise WakeWordError(
+                "No wake-word backend has been configured."
+            )
+
+        if not self._running:
+            raise WakeWordError(
+                "Wake-word detector is not running."
+            )
+
+        return self._backend.detected()
+
+    def reset(self) -> None:
+        """
+        Reset the wake-word manager.
+
+        Stops detection if necessary and removes
+        the configured backend.
+        """
+        self.stop()
+        self._backend = None
