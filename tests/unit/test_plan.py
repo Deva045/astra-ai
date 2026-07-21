@@ -1,135 +1,134 @@
-"""
-Unit tests for the Plan model.
-"""
 
-from __future__ import annotations
+"""
+Tests for execution plans.
+"""
 
 from ai.plan import Plan
 from ai.plan_status import PlanStatus
 from ai.plan_step import PlanStep
 
 
-class TestPlan:
+def create_step(
+    step_id: int,
+    title: str,
+    status: PlanStatus = PlanStatus.PENDING,
+) -> PlanStep:
     """
-    Tests for the Plan model.
+    Helper for creating plan steps.
     """
+    return PlanStep(
+        id=step_id,
+        title=title,
+        description="",
+        status=status,
+    )
 
-    def test_empty_plan(self) -> None:
-        """
-        Verify a newly created plan.
-        """
-        plan = Plan(goal="Build project")
 
-        assert plan.goal == "Build project"
-        assert plan.step_count() == 0
-        assert plan.completed_steps() == []
-        assert plan.pending_steps() == []
-        assert not plan.is_complete()
+def test_empty_plan():
+    """
+    Empty plan should report no steps.
+    """
+    plan = Plan(goal="Test")
 
-    def test_add_step(self) -> None:
-        """
-        Verify adding a step.
-        """
-        plan = Plan(goal="Demo")
+    assert plan.step_count() == 0
+    assert not plan.has_steps()
+    assert plan.progress() == 0.0
+    assert plan.next_step() is None
+    assert plan.remaining_steps() == 0
+    assert not plan.is_complete()
 
-        step = PlanStep(
-            id=1,
-            title="Create folder",
+
+def test_add_step():
+    """
+    Adding a step should update the plan.
+    """
+    plan = Plan(goal="Test")
+
+    plan.add_step(
+        create_step(
+            1,
+            "Step One",
         )
+    )
 
-        plan.add_step(step)
+    assert plan.step_count() == 1
+    assert plan.has_steps()
+    assert plan.remaining_steps() == 1
+    assert plan.next_step() is not None
 
-        assert plan.step_count() == 1
-        assert plan.steps[0] == step
 
-    def test_pending_steps(self) -> None:
-        """
-        Verify pending step detection.
-        """
-        plan = Plan(goal="Demo")
+def test_progress_partial():
+    """
+    Progress should reflect completed steps.
+    """
+    plan = Plan(goal="Test")
 
-        plan.add_step(
-            PlanStep(
-                id=1,
-                title="A",
-            )
+    plan.add_step(
+        create_step(
+            1,
+            "Done",
+            PlanStatus.COMPLETED,
         )
+    )
 
-        plan.add_step(
-            PlanStep(
-                id=2,
-                title="B",
-                status=PlanStatus.COMPLETED,
-            )
+    plan.add_step(
+        create_step(
+            2,
+            "Pending",
         )
+    )
 
-        pending = plan.pending_steps()
+    assert plan.progress() == 50.0
+    assert plan.remaining_steps() == 1
 
-        assert len(pending) == 1
-        assert pending[0].id == 1
 
-    def test_completed_steps(self) -> None:
-        """
-        Verify completed step detection.
-        """
-        plan = Plan(goal="Demo")
+def test_progress_complete():
+    """
+    Fully completed plan.
+    """
+    plan = Plan(goal="Test")
 
-        plan.add_step(
-            PlanStep(
-                id=1,
-                title="A",
-                status=PlanStatus.COMPLETED,
-            )
+    plan.add_step(
+        create_step(
+            1,
+            "One",
+            PlanStatus.COMPLETED,
         )
+    )
 
-        completed = plan.completed_steps()
-
-        assert len(completed) == 1
-        assert completed[0].id == 1
-
-    def test_is_complete(self) -> None:
-        """
-        Verify completion detection.
-        """
-        plan = Plan(goal="Demo")
-
-        plan.add_step(
-            PlanStep(
-                id=1,
-                title="A",
-                status=PlanStatus.COMPLETED,
-            )
+    plan.add_step(
+        create_step(
+            2,
+            "Two",
+            PlanStatus.COMPLETED,
         )
+    )
 
-        plan.add_step(
-            PlanStep(
-                id=2,
-                title="B",
-                status=PlanStatus.COMPLETED,
-            )
+    assert plan.progress() == 100.0
+    assert plan.remaining_steps() == 0
+    assert plan.next_step() is None
+    assert plan.is_complete()
+
+
+def test_next_step():
+    """
+    Next pending step should be returned.
+    """
+    plan = Plan(goal="Test")
+
+    plan.add_step(
+        create_step(
+            1,
+            "Done",
+            PlanStatus.COMPLETED,
         )
+    )
 
-        assert plan.is_complete()
+    second = create_step(
+        2,
+        "Pending",
+    )
 
-    def test_is_not_complete(self) -> None:
-        """
-        Verify incomplete plans.
-        """
-        plan = Plan(goal="Demo")
+    plan.add_step(second)
 
-        plan.add_step(
-            PlanStep(
-                id=1,
-                title="A",
-                status=PlanStatus.COMPLETED,
-            )
-        )
-
-        plan.add_step(
-            PlanStep(
-                id=2,
-                title="B",
-            )
-        )
-
-        assert not plan.is_complete()
+    assert plan.next_step() == second

@@ -1,3 +1,4 @@
+
 """
 Execution plan model for Astra AI.
 """
@@ -33,6 +34,12 @@ class Plan:
         """
         return len(self.steps)
 
+    def has_steps(self) -> bool:
+        """
+        Return True if the plan contains at least one step.
+        """
+        return bool(self.steps)
+
     def completed_steps(self) -> list[PlanStep]:
         """
         Return all completed steps.
@@ -52,6 +59,31 @@ class Plan:
             for step in self.steps
             if step.status == PlanStatus.PENDING
         ]
+
+    def remaining_steps(self) -> int:
+        """
+        Return the number of pending steps.
+        """
+        return len(self.pending_steps())
+
+    def next_step(self) -> PlanStep | None:
+        """
+        Return the next pending step.
+        """
+        for step in self.steps:
+            if step.status == PlanStatus.PENDING:
+                return step
+        return None
+
+    def progress(self) -> float:
+        """
+        Return completion progress as a percentage.
+        """
+        if not self.steps:
+            return 0.0
+
+        completed = len(self.completed_steps())
+        return (completed / len(self.steps)) * 100.0
 
     def is_complete(self) -> bool:
         """
